@@ -1,13 +1,11 @@
-// ==================== CONTRATOS VR - SERVER.JS ====================
+// ==================== CONTRATOS VR - SERVER.JS COMPLETO ====================
 // Sistema de Distribuição de Metragem por Unidade
-// Versão Standalone
+// Versão Standalone - SEM LOGIN
 
 const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const cors = require("cors");
-const session = require("express-session");
-const bcrypt = require("bcryptjs");
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -17,15 +15,6 @@ const PORT = process.env.PORT || 3002;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-app.use(
-  session({
-    secret: "contratosvr_secret_key_2025",
-    resave: false,
-    saveUninitialized: false,
-    cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 horas
-  })
-);
 
 // Servir arquivos estáticos
 app.use(express.static(path.join(__dirname, "public")));
@@ -45,18 +34,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 db.serialize(() => {
   
-  // 1. TABELA DE USUÁRIOS
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('admin', 'engenheiro', 'encarregado')),
-      created_at TEXT DEFAULT (datetime('now', 'localtime'))
-    )
-  `);
-
-  // 2. TABELA DE EMPREENDIMENTOS
+  // 1. TABELA DE EMPREENDIMENTOS
   db.run(`
     CREATE TABLE IF NOT EXISTS empreendimentos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,7 +51,7 @@ db.serialize(() => {
     )
   `);
 
-  // 3. TABELA DE CONTRATOS
+  // 2. TABELA DE CONTRATOS
   db.run(`
     CREATE TABLE IF NOT EXISTS contratos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,7 +72,7 @@ db.serialize(() => {
     )
   `);
 
-  // 4. TABELA DE UNIDADES
+  // 3. TABELA DE UNIDADES
   db.run(`
     CREATE TABLE IF NOT EXISTS unidades (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,7 +90,7 @@ db.serialize(() => {
     )
   `);
 
-  // 5. TABELA DE DISTRIBUIÇÃO
+  // 4. TABELA DE DISTRIBUIÇÃO
   db.run(`
     CREATE TABLE IF NOT EXISTS distribuicao (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,7 +109,7 @@ db.serialize(() => {
     )
   `);
 
-  // 6. TABELA DE EXECUÇÃO
+  // 5. TABELA DE EXECUÇÃO
   db.run(`
     CREATE TABLE IF NOT EXISTS execucao (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -151,187 +129,19 @@ db.serialize(() => {
     )
   `);
 
-  // 7. TABELA DE HISTÓRICO
-  db.run(`
-    CREATE TABLE IF NOT EXISTS historico_medicoes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      execucao_id INTEGER NOT NULL,
-      contrato_id INTEGER NOT NULL,
-      unidade_id INTEGER NOT NULL,
-      metragem_anterior REAL,
-      metragem_atual REAL NOT NULL,
-      metragem_adicionada REAL NOT NULL,
-      usuario TEXT,
-      observacoes TEXT,
-      created_at TEXT DEFAULT (datetime('now', 'localtime')),
-      FOREIGN KEY (execucao_id) REFERENCES execucao(id) ON DELETE CASCADE,
-      FOREIGN KEY (contrato_id) REFERENCES contratos(id) ON DELETE CASCADE,
-      FOREIGN KEY (unidade_id) REFERENCES unidades(id) ON DELETE CASCADE
-    )
-  `);
-
-  // 8. TABELA DE PAGAMENTOS
-  db.run(`
-    CREATE TABLE IF NOT EXISTS pagamentos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      contrato_id INTEGER NOT NULL,
-      numero_medicao INTEGER NOT NULL,
-      valor_medido REAL NOT NULL,
-      metragem_medida REAL NOT NULL,
-      data_medicao TEXT NOT NULL,
-      valor_pago REAL DEFAULT 0,
-      data_pagamento TEXT,
-      status TEXT DEFAULT 'pendente' CHECK(status IN ('pendente', 'aprovado', 'pago')),
-      observacoes TEXT,
-      created_at TEXT DEFAULT (datetime('now', 'localtime')),
-      FOREIGN KEY (contrato_id) REFERENCES contratos(id) ON DELETE CASCADE,
-      UNIQUE(contrato_id, numero_medicao)
-    )
-  `);
-
   // CRIAR ÍNDICES
   db.run(`CREATE INDEX IF NOT EXISTS idx_contratos_empreendimento ON contratos(empreendimento_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_distribuicao_contrato ON distribuicao(contrato_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_execucao_unidade ON execucao(contrato_id, unidade_id)`);
 
-  // CRIAR USUÁRIO ADMIN PADRÃO
-  db.get("SELECT id FROM users WHERE username = 'admin'", (err, row) => {
-    if (!row) {
-      const hash = bcrypt.hashSync("admin123", 10);
-      db.run(
-        "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-        ["admin", hash, "admin"],
-        (err) => {
-          if (err) {
-            console.log("❌ Erro ao criar usuário admin:", err);
-          } else {
-            console.log("✅ Usuário admin criado (senha: admin123)");
-          }
-        }
-      );
-    }
-  });
-
   console.log("✅ Tabelas do ContratosVR criadas/verificadas");
 });
 
-// ==================== SEM AUTENTICAÇÃO - ACESSO DIRETO ====================
-// Sistema sem login - integrado com EngVR/ChaveVR
-
 // ==================== ROTAS DA API ====================
 
-// 1. LISTAR TODOS OS CONTRATOS
-app.get("/api/contratos", (req, res) => {
-  const sql = `
-    SELECT 
-      c.*,
-      e.nome as empreendimento_nome,
-      COALESCE(
-        (SELECT ROUND((SUM(ex.metragem_executada) / c.metragem_total) * 100, 2)
-         FROM execucao ex
-         WHERE ex.contrato_id = c.id), 0
-      ) as percentual_executado
-    FROM contratos c
-    LEFT JOIN empreendimentos e ON c.empreendimento_id = e.id
-    ORDER BY c.created_at DESC
-  `;
-  
-  db.all(sql, [], (err, rows) => {
-    if (err) {
-      console.error("Erro ao listar contratos:", err);
-      return res.status(500).json({ error: "Erro ao listar contratos" });
-    }
-    res.json(rows);
-  });
-});
+// ==================== EMPREENDIMENTOS ====================
 
-// 2. BUSCAR UM CONTRATO
-app.get("/api/contratos/:id", (req, res) => {
-  const { id } = req.params;
-  
-  const sql = `
-    SELECT 
-      c.*,
-      e.nome as empreendimento_nome,
-      e.quantidade_blocos,
-      e.quantidade_pavimentos_por_bloco,
-      e.quantidade_apartamentos_por_pavimento,
-      e.existem_halls,
-      e.quantidade_halls_por_pavimento
-    FROM contratos c
-    LEFT JOIN empreendimentos e ON c.empreendimento_id = e.id
-    WHERE c.id = ?
-  `;
-  
-  db.get(sql, [id], (err, row) => {
-    if (err) {
-      console.error("Erro ao buscar contrato:", err);
-      return res.status(500).json({ error: "Erro ao buscar contrato" });
-    }
-    if (!row) {
-      return res.status(404).json({ error: "Contrato não encontrado" });
-    }
-    res.json(row);
-  });
-});
-
-// 3. CRIAR CONTRATO
-app.post("/api/contratos", (req, res) => {
-  const {
-    numero_contrato_oerp,
-    empreendimento_id,
-    tipo_servico,
-    valor_total,
-    valor_por_m2,
-    metragem_total,
-    metragem_por_pavimento,
-    observacoes,
-    data_inicio,
-    data_previsao_termino
-  } = req.body;
-  
-  if (!numero_contrato_oerp || !empreendimento_id || !tipo_servico || !valor_total || !metragem_total) {
-    return res.status(400).json({ error: "Campos obrigatórios faltando" });
-  }
-  
-  const sql = `
-    INSERT INTO contratos (
-      numero_contrato_oerp, empreendimento_id, tipo_servico, valor_total, 
-      valor_por_m2, metragem_total, metragem_por_pavimento, observacoes,
-      data_inicio, data_previsao_termino
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-  
-  const params = [
-    numero_contrato_oerp,
-    empreendimento_id,
-    tipo_servico,
-    valor_total,
-    valor_por_m2,
-    metragem_total,
-    JSON.stringify(metragem_por_pavimento),
-    observacoes || null,
-    data_inicio || null,
-    data_previsao_termino || null
-  ];
-  
-  db.run(sql, params, function(err) {
-    if (err) {
-      console.error("Erro ao criar contrato:", err);
-      if (err.message.includes('UNIQUE')) {
-        return res.status(400).json({ error: "Número de contrato já existe" });
-      }
-      return res.status(500).json({ error: "Erro ao criar contrato" });
-    }
-    
-    res.status(201).json({ 
-      id: this.lastID,
-      message: "Contrato criado com sucesso" 
-    });
-  });
-});
-
-// 4. LISTAR EMPREENDIMENTOS
+// LISTAR EMPREENDIMENTOS
 app.get("/api/empreendimentos", (req, res) => {
   db.all("SELECT * FROM empreendimentos WHERE ativo = 1 ORDER BY nome", [], (err, rows) => {
     if (err) {
@@ -342,7 +152,22 @@ app.get("/api/empreendimentos", (req, res) => {
   });
 });
 
-// 5. CRIAR EMPREENDIMENTO
+// BUSCAR UM EMPREENDIMENTO
+app.get("/api/empreendimentos/:id", (req, res) => {
+  const { id } = req.params;
+  db.get("SELECT * FROM empreendimentos WHERE id = ?", [id], (err, row) => {
+    if (err) {
+      console.error("Erro ao buscar empreendimento:", err);
+      return res.status(500).json({ error: "Erro ao buscar empreendimento" });
+    }
+    if (!row) {
+      return res.status(404).json({ error: "Empreendimento não encontrado" });
+    }
+    res.json(row);
+  });
+});
+
+// CRIAR EMPREENDIMENTO
 app.post("/api/empreendimentos", (req, res) => {
   const {
     nome,
@@ -389,9 +214,481 @@ app.post("/api/empreendimentos", (req, res) => {
   });
 });
 
-// ==================== ROTA RAIZ - ACESSO DIRETO ====================
+// ATUALIZAR EMPREENDIMENTO
+app.put("/api/empreendimentos/:id", (req, res) => {
+  const { id } = req.params;
+  const {
+    nome,
+    quantidade_blocos,
+    quantidade_pavimentos_por_bloco,
+    quantidade_apartamentos_por_pavimento,
+    existem_halls,
+    quantidade_halls_por_pavimento,
+    observacoes
+  } = req.body;
+  
+  const sql = `
+    UPDATE empreendimentos SET
+      nome = ?,
+      quantidade_blocos = ?,
+      quantidade_pavimentos_por_bloco = ?,
+      quantidade_apartamentos_por_pavimento = ?,
+      existem_halls = ?,
+      quantidade_halls_por_pavimento = ?,
+      observacoes = ?,
+      updated_at = datetime('now', 'localtime')
+    WHERE id = ?
+  `;
+  
+  db.run(sql, [nome, quantidade_blocos, quantidade_pavimentos_por_bloco, 
+    quantidade_apartamentos_por_pavimento, existem_halls ? 1 : 0, 
+    quantidade_halls_por_pavimento, observacoes, id], function(err) {
+    if (err) {
+      console.error("Erro ao atualizar empreendimento:", err);
+      return res.status(500).json({ error: "Erro ao atualizar empreendimento" });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: "Empreendimento não encontrado" });
+    }
+    res.json({ message: "Empreendimento atualizado com sucesso" });
+  });
+});
+
+// DELETAR EMPREENDIMENTO
+app.delete("/api/empreendimentos/:id", (req, res) => {
+  const { id } = req.params;
+  db.run("DELETE FROM empreendimentos WHERE id = ?", [id], function(err) {
+    if (err) {
+      console.error("Erro ao deletar empreendimento:", err);
+      return res.status(500).json({ error: "Erro ao deletar empreendimento" });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: "Empreendimento não encontrado" });
+    }
+    res.json({ message: "Empreendimento deletado com sucesso" });
+  });
+});
+
+// ==================== UNIDADES ====================
+
+// LISTAR UNIDADES DE UM EMPREENDIMENTO
+app.get("/api/unidades/empreendimento/:empId", (req, res) => {
+  const { empId } = req.params;
+  db.all(
+    "SELECT * FROM unidades WHERE empreendimento_id = ? ORDER BY bloco, pavimento, numero_unidade",
+    [empId],
+    (err, rows) => {
+      if (err) {
+        console.error("Erro ao listar unidades:", err);
+        return res.status(500).json({ error: "Erro ao listar unidades" });
+      }
+      res.json(rows);
+    }
+  );
+});
+
+// CRIAR UNIDADES AUTOMATICAMENTE
+app.post("/api/unidades/criar-automatico", (req, res) => {
+  const { empreendimento_id } = req.body;
+  
+  if (!empreendimento_id) {
+    return res.status(400).json({ error: "empreendimento_id é obrigatório" });
+  }
+  
+  // Buscar configuração do empreendimento
+  db.get("SELECT * FROM empreendimentos WHERE id = ?", [empreendimento_id], (err, emp) => {
+    if (err || !emp) {
+      return res.status(404).json({ error: "Empreendimento não encontrado" });
+    }
+    
+    const unidades = [];
+    
+    // Gerar unidades para cada bloco/pavimento
+    for (let b = 1; b <= emp.quantidade_blocos; b++) {
+      const blocoNome = emp.quantidade_blocos > 1 ? `Bloco ${String.fromCharCode(64 + b)}` : 'Único';
+      
+      for (let p = 1; p <= emp.quantidade_pavimentos_por_bloco; p++) {
+        // Apartamentos
+        for (let a = 1; a <= emp.quantidade_apartamentos_por_pavimento; a++) {
+          const numeroUnidade = `${p}${String(a).padStart(2, '0')}`;
+          unidades.push([empreendimento_id, blocoNome, p, numeroUnidade, 'apartamento', null]);
+        }
+        
+        // Hall (se existir)
+        if (emp.existem_halls) {
+          for (let h = 1; h <= emp.quantidade_halls_por_pavimento; h++) {
+            const numeroHall = emp.quantidade_halls_por_pavimento > 1 ? `Hall ${h}` : 'Hall';
+            unidades.push([empreendimento_id, blocoNome, p, numeroHall, 'hall', null]);
+          }
+        }
+      }
+    }
+    
+    // Inserir todas as unidades
+    const sql = "INSERT OR IGNORE INTO unidades (empreendimento_id, bloco, pavimento, numero_unidade, tipo, observacoes) VALUES (?, ?, ?, ?, ?, ?)";
+    
+    let inserted = 0;
+    let processed = 0;
+    
+    unidades.forEach((unidade, index) => {
+      db.run(sql, unidade, function(err) {
+        processed++;
+        if (!err && this.changes > 0) inserted++;
+        
+        if (processed === unidades.length) {
+          res.json({ 
+            message: `${inserted} unidades criadas com sucesso`,
+            total: unidades.length,
+            inserted: inserted,
+            duplicated: unidades.length - inserted
+          });
+        }
+      });
+    });
+  });
+});
+
+// ==================== CONTRATOS ====================
+
+// LISTAR TODOS OS CONTRATOS
+app.get("/api/contratos", (req, res) => {
+  const sql = `
+    SELECT 
+      c.*,
+      e.nome as empreendimento_nome,
+      COALESCE(
+        (SELECT ROUND((SUM(ex.metragem_executada) / c.metragem_total) * 100, 2)
+         FROM execucao ex
+         WHERE ex.contrato_id = c.id), 0
+      ) as percentual_executado
+    FROM contratos c
+    LEFT JOIN empreendimentos e ON c.empreendimento_id = e.id
+    ORDER BY c.created_at DESC
+  `;
+  
+  db.all(sql, [], (err, rows) => {
+    if (err) {
+      console.error("Erro ao listar contratos:", err);
+      return res.status(500).json({ error: "Erro ao listar contratos" });
+    }
+    res.json(rows);
+  });
+});
+
+// BUSCAR UM CONTRATO
+app.get("/api/contratos/:id", (req, res) => {
+  const { id } = req.params;
+  
+  const sql = `
+    SELECT 
+      c.*,
+      e.nome as empreendimento_nome,
+      e.quantidade_blocos,
+      e.quantidade_pavimentos_por_bloco,
+      e.quantidade_apartamentos_por_pavimento,
+      e.existem_halls,
+      e.quantidade_halls_por_pavimento
+    FROM contratos c
+    LEFT JOIN empreendimentos e ON c.empreendimento_id = e.id
+    WHERE c.id = ?
+  `;
+  
+  db.get(sql, [id], (err, row) => {
+    if (err) {
+      console.error("Erro ao buscar contrato:", err);
+      return res.status(500).json({ error: "Erro ao buscar contrato" });
+    }
+    if (!row) {
+      return res.status(404).json({ error: "Contrato não encontrado" });
+    }
+    res.json(row);
+  });
+});
+
+// CRIAR CONTRATO
+app.post("/api/contratos", (req, res) => {
+  const {
+    numero_contrato_oerp,
+    empreendimento_id,
+    tipo_servico,
+    valor_total,
+    valor_por_m2,
+    metragem_total,
+    metragem_por_pavimento,
+    observacoes,
+    data_inicio,
+    data_previsao_termino
+  } = req.body;
+  
+  if (!numero_contrato_oerp || !empreendimento_id || !tipo_servico || !valor_total || !metragem_total) {
+    return res.status(400).json({ error: "Campos obrigatórios faltando" });
+  }
+  
+  const sql = `
+    INSERT INTO contratos (
+      numero_contrato_oerp, empreendimento_id, tipo_servico, valor_total, 
+      valor_por_m2, metragem_total, metragem_por_pavimento, observacoes,
+      data_inicio, data_previsao_termino
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  
+  const params = [
+    numero_contrato_oerp,
+    empreendimento_id,
+    tipo_servico,
+    valor_total,
+    valor_por_m2 || 0,
+    metragem_total,
+    JSON.stringify(metragem_por_pavimento || {}),
+    observacoes || null,
+    data_inicio || null,
+    data_previsao_termino || null
+  ];
+  
+  db.run(sql, params, function(err) {
+    if (err) {
+      console.error("Erro ao criar contrato:", err);
+      if (err.message.includes('UNIQUE')) {
+        return res.status(400).json({ error: "Número de contrato já existe" });
+      }
+      return res.status(500).json({ error: "Erro ao criar contrato" });
+    }
+    
+    res.status(201).json({ 
+      id: this.lastID,
+      message: "Contrato criado com sucesso" 
+    });
+  });
+});
+
+// ATUALIZAR CONTRATO
+app.put("/api/contratos/:id", (req, res) => {
+  const { id } = req.params;
+  const {
+    numero_contrato_oerp,
+    tipo_servico,
+    valor_total,
+    valor_por_m2,
+    metragem_total,
+    metragem_por_pavimento,
+    observacoes,
+    status,
+    data_inicio,
+    data_previsao_termino
+  } = req.body;
+  
+  const sql = `
+    UPDATE contratos SET
+      numero_contrato_oerp = ?,
+      tipo_servico = ?,
+      valor_total = ?,
+      valor_por_m2 = ?,
+      metragem_total = ?,
+      metragem_por_pavimento = ?,
+      observacoes = ?,
+      status = ?,
+      data_inicio = ?,
+      data_previsao_termino = ?,
+      updated_at = datetime('now', 'localtime')
+    WHERE id = ?
+  `;
+  
+  const params = [
+    numero_contrato_oerp,
+    tipo_servico,
+    valor_total,
+    valor_por_m2,
+    metragem_total,
+    JSON.stringify(metragem_por_pavimento),
+    observacoes,
+    status,
+    data_inicio,
+    data_previsao_termino,
+    id
+  ];
+  
+  db.run(sql, params, function(err) {
+    if (err) {
+      console.error("Erro ao atualizar contrato:", err);
+      return res.status(500).json({ error: "Erro ao atualizar contrato" });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: "Contrato não encontrado" });
+    }
+    res.json({ message: "Contrato atualizado com sucesso" });
+  });
+});
+
+// DELETAR CONTRATO
+app.delete("/api/contratos/:id", (req, res) => {
+  const { id } = req.params;
+  db.run("DELETE FROM contratos WHERE id = ?", [id], function(err) {
+    if (err) {
+      console.error("Erro ao deletar contrato:", err);
+      return res.status(500).json({ error: "Erro ao deletar contrato" });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: "Contrato não encontrado" });
+    }
+    res.json({ message: "Contrato deletado com sucesso" });
+  });
+});
+
+// ==================== DISTRIBUIÇÃO ====================
+
+// LISTAR DISTRIBUIÇÃO DE UM CONTRATO
+app.get("/api/distribuicao/contrato/:contratoId", (req, res) => {
+  const { contratoId } = req.params;
+  
+  const sql = `
+    SELECT 
+      d.*,
+      u.numero_unidade,
+      u.bloco,
+      u.pavimento,
+      u.tipo
+    FROM distribuicao d
+    LEFT JOIN unidades u ON d.unidade_id = u.id
+    WHERE d.contrato_id = ?
+    ORDER BY u.bloco, u.pavimento, u.numero_unidade
+  `;
+  
+  db.all(sql, [contratoId], (err, rows) => {
+    if (err) {
+      console.error("Erro ao listar distribuição:", err);
+      return res.status(500).json({ error: "Erro ao listar distribuição" });
+    }
+    res.json(rows);
+  });
+});
+
+// SALVAR DISTRIBUIÇÃO
+app.post("/api/distribuicao/salvar", (req, res) => {
+  const { contrato_id, distribuicoes } = req.body;
+  
+  if (!contrato_id || !Array.isArray(distribuicoes) || distribuicoes.length === 0) {
+    return res.status(400).json({ error: "Dados inválidos" });
+  }
+  
+  // Deletar distribuições antigas
+  db.run("DELETE FROM distribuicao WHERE contrato_id = ?", [contrato_id], (err) => {
+    if (err) {
+      console.error("Erro ao deletar distribuições antigas:", err);
+      return res.status(500).json({ error: "Erro ao salvar distribuição" });
+    }
+    
+    // Inserir novas distribuições
+    const sql = `
+      INSERT INTO distribuicao (
+        contrato_id, unidade_id, bloco, pavimento, metragem_contratada, coeficiente
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    
+    let saved = 0;
+    let errors = 0;
+    
+    distribuicoes.forEach((dist, index) => {
+      db.run(sql, [
+        contrato_id,
+        dist.unidade_id,
+        dist.bloco,
+        dist.pavimento,
+        dist.metragem_contratada,
+        dist.coeficiente || 1.0
+      ], function(err) {
+        if (err) {
+          console.error("Erro ao salvar distribuição:", err);
+          errors++;
+        } else {
+          saved++;
+        }
+        
+        if (saved + errors === distribuicoes.length) {
+          res.json({ 
+            message: `${saved} distribuições salvas com sucesso`,
+            saved: saved,
+            errors: errors
+          });
+        }
+      });
+    });
+  });
+});
+
+// ==================== EXECUÇÃO ====================
+
+// LISTAR EXECUÇÕES DE UM CONTRATO
+app.get("/api/execucao/contrato/:contratoId", (req, res) => {
+  const { contratoId } = req.params;
+  
+  const sql = `
+    SELECT 
+      e.*,
+      u.numero_unidade,
+      u.bloco,
+      u.pavimento,
+      u.tipo
+    FROM execucao e
+    LEFT JOIN unidades u ON e.unidade_id = u.id
+    WHERE e.contrato_id = ?
+    ORDER BY e.created_at DESC
+  `;
+  
+  db.all(sql, [contratoId], (err, rows) => {
+    if (err) {
+      console.error("Erro ao listar execuções:", err);
+      return res.status(500).json({ error: "Erro ao listar execuções" });
+    }
+    res.json(rows);
+  });
+});
+
+// REGISTRAR EXECUÇÃO
+app.post("/api/execucao/registrar", (req, res) => {
+  const {
+    contrato_id,
+    unidade_id,
+    metragem_executada,
+    data_medicao,
+    responsavel,
+    observacoes
+  } = req.body;
+  
+  if (!contrato_id || !unidade_id || !metragem_executada || !data_medicao) {
+    return res.status(400).json({ error: "Campos obrigatórios faltando" });
+  }
+  
+  const sql = `
+    INSERT INTO execucao (
+      contrato_id, unidade_id, metragem_executada, data_medicao, responsavel, observacoes
+    ) VALUES (?, ?, ?, ?, ?, ?)
+  `;
+  
+  db.run(sql, [contrato_id, unidade_id, metragem_executada, data_medicao, responsavel, observacoes], function(err) {
+    if (err) {
+      console.error("Erro ao registrar execução:", err);
+      return res.status(500).json({ error: "Erro ao registrar execução" });
+    }
+    
+    res.status(201).json({ 
+      id: this.lastID,
+      message: "Execução registrada com sucesso" 
+    });
+  });
+});
+
+// ==================== ROTA RAIZ ====================
 app.get("/", (req, res) => {
   res.redirect("/index.html");
+});
+
+// ==================== HEALTH CHECK ====================
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "online", 
+    version: "2.0.0",
+    database: dbPath
+  });
 });
 
 // ==================== INICIAR SERVIDOR ====================
@@ -400,8 +697,9 @@ app.listen(PORT, () => {
 ╔═══════════════════════════════════════════╗
 ║     CONTRATOS VR - SERVIDOR INICIADO      ║
 ╠═══════════════════════════════════════════╣
-║  Porta: ${PORT.toString().padEnd(34)}  ║
-║  URL: http://localhost:${PORT.toString().padEnd(23)}  ║
+║  Porta: ${PORT.toString().padEnd(34)} ║
+║  URL: http://localhost:${PORT.toString().padEnd(23)} ║
+║  Banco: ${dbPath.substring(0, 28).padEnd(30)}║
 ╚═══════════════════════════════════════════╝
   `);
 });
