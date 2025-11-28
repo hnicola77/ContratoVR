@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Distribuição de Metragem - ContratosVR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+  <div class="top-menu">
+    <a href="/index.html">Contratos</a>
+    <a href="/empreendimentos.html">Empreendimentos</a>
+    <a class="ativo" href="/distribuicao.html">Distribuição</a>
+    <a href="/execucao.html">Execução</a>
+    
+    <div style="margin-left: auto;">
+      <span style="margin-right: 16px; color: #64748b;">🏗️ ContratosVR</span>
+    </div>
+  </div>
+
+  <div class="container">
+    
+    <div style="margin-bottom: 24px;">
+      <h1 style="margin: 0;">📏 Distribuição de Metragem</h1>
+      <p style="color: #64748b; margin-top: 8px;">Distribua a metragem contratada entre as unidades</p>
+    </div>
+
+    <!-- Seleção de Contrato -->
+    <div style="background: white; padding: 24px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 24px;">
+      <h3 style="margin-top: 0;">1. Selecione o Contrato</h3>
+      
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px;">
+        <div>
+          <label style="display: block; margin-bottom: 8px; font-weight: 500;">Contrato</label>
+          <select id="contratoSelect" onchange="carregarContrato()" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+            <option value="">Selecione um contrato</option>
+          </select>
+        </div>
+        
+        <div>
+          <label style="display: block; margin-bottom: 8px; font-weight: 500;">Pavimento</label>
+          <select id="pavimentoSelect" onchange="selecionarPavimento()" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+            <option value="">Selecione o pavimento</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Info do Contrato -->
+      <div id="infoContrato" style="display: none; margin-top: 16px; padding: 16px; background: #f8f9fa; border-radius: 8px;">
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+          <div>
+            <small style="color: #64748b;">Empreendimento</small>
+            <div id="infoEmpreendimento" style="font-weight: 600;"></div>
+          </div>
+          <div>
+            <small style="color: #64748b;">Tipo de Serviço</small>
+            <div id="infoTipoServico" style="font-weight: 600;"></div>
+          </div>
+          <div>
+            <small style="color: #64748b;">Metragem Total</small>
+            <div id="infoMetragemTotal" style="font-weight: 600;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Distribuição -->
+    <div id="areaDistribuicao" style="display: none;">
+      
+      <!-- Info do Pavimento -->
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px; border-radius: 16px; margin-bottom: 24px;">
+        <h3 style="margin: 0 0 16px 0;">Pavimento <span id="pavimentoAtual"></span></h3>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+          <div>
+            <small style="opacity: 0.9;">Metragem Contratada</small>
+            <div style="font-size: 24px; font-weight: 700;" id="metragémContratada">0 m²</div>
+          </div>
+          <div>
+            <small style="opacity: 0.9;">Metragem Distribuída</small>
+            <div style="font-size: 24px; font-weight: 700;" id="metragemDistribuida">0 m²</div>
+          </div>
+          <div>
+            <small style="opacity: 0.9;">Diferença</small>
+            <div style="font-size: 24px; font-weight: 700;" id="diferenca">0 m²</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Botões de Ação -->
+      <div style="display: flex; gap: 12px; margin-bottom: 24px;">
+        <button class="btn-primary" onclick="distribuirAutomaticamente()">
+          🔄 Distribuir Automaticamente
+        </button>
+        <button class="btn-secondary" onclick="limparDistribuicao()">
+          🗑️ Limpar Distribuição
+        </button>
+        <button class="btn-primary" onclick="salvarDistribuicao()" style="margin-left: auto; background: #10b981;">
+          ✓ Salvar Distribuição
+        </button>
+      </div>
+
+      <!-- Tabela de Unidades -->
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Bloco</th>
+              <th>Unidade</th>
+              <th>Tipo</th>
+              <th>Coeficiente</th>
+              <th>Metragem (m²)</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaUnidades">
+            <tr>
+              <td colspan="5" style="text-align: center; padding: 40px;">
+                Selecione um contrato e pavimento
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Alerta de Validação -->
+      <div id="alertaValidacao" style="display: none; margin-top: 16px; padding: 16px; border-radius: 8px;">
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    let contratos = [];
+    let contratoSelecionado = null;
+    let pavimentoSelecionado = null;
+    let unidades = [];
+    let distribuicaoAtual = [];
+
+    // ==================== CARREGAR CONTRATOS ====================
+    async function carregarContratos() {
+      try {
+        const response = await fetch('/api/contratos');
+        contratos = await response.json();
+        
+        const select = document.getElementById('contratoSelect');
+        select.innerHTML = '<option value="">Selecione um contrato</option>';
+        
+        contratos.forEach(c => {
+          const option = document.createElement('option');
+          option.value = c.id;
+          option.textContent = `${c.numero_contrato_oerp} - ${c.empreendimento_nome}`;
+          select.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao carregar contratos');
+      }
+    }
+
+    // ==================== CARREGAR CONTRATO ====================
+    async function carregarContrato() {
+      const id = document.getElementById('contratoSelect').value;
+      if (!id) {
+        document.getElementById('infoContrato').style.display = 'none';
+        document.getElementById('pavimentoSelect').innerHTML = '<option value="">Selecione o pavimento</option>';
+        document.getElementById('areaDistribuicao').style.display = 'none';
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/contratos/' + id);
+        contratoSelecionado = await response.json();
+        
+        // Mostrar info
+        document.getElementById('infoContrato').style.display = 'block';
+        document.getElementById('infoEmpreendimento').textContent = contratoSelecionado.empreendimento_nome;
+        document.getElementById('infoTipoServico').textContent = contratoSelecionado.tipo_servico;
+        document.getElementById('infoMetragemTotal').textContent = parseFloat(contratoSelecionado.metragem_total).toFixed(2) + ' m²';
+        
+        // Preencher pavimentos
+        const metragemPorPav = JSON.parse(contratoSelecionado.metragem_por_pavimento);
+        const selectPav = document.getElementById('pavimentoSelect');
+        selectPav.innerHTML = '<option value="">Selecione o pavimento</option>';
+        
+        Object.keys(metragemPorPav).forEach(pav => {
+          const option = document.createElement('option');
+          option.value = pav;
+          option.textContent = `Pavimento ${pav} - ${parseFloat(metragemPorPav[pav]).toFixed(2)} m²`;
+          selectPav.appendChild(option);
+        });
+        
+      } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao carregar contrato');
+      }
+    }
+
+    // ==================== SELECIONAR PAVIMENTO ====================
+    async function selecionarPavimento() {
+      pavimentoSelecionado = document.getElementById('pavimentoSelect').value;
+      if (!pavimentoSelecionado) {
+        document.getElementById('areaDistribuicao').style.display = 'none';
+        return;
+      }
+      
+      document.getElementById('areaDistribuicao').style.display = 'block';
+      document.getElementById('pavimentoAtual').textContent = pavimentoSelecionado;
+      
+      const metragemPorPav = JSON.parse(contratoSelecionado.metragem_por_pavimento);
+      const metragemContratada = parseFloat(metragemPorPav[pavimentoSelecionado]);
+      
+      document.getElementById('metragémContratada').textContent = metragemContratada.toFixed(2) + ' m²';
+      
+      await carregarUnidades();
+      await carregarDistribuicaoExistente();
+    }
+
+    // ==================== CARREGAR UNIDADES ====================
+    async function carregarUnidades() {
+      try {
+        const response = await fetch('/api/unidades/empreendimento/' + contratoSelecionado.empreendimento_id);
+        const todasUnidades = await response.json();
+        
+        // Filtrar unidades do pavimento selecionado
+        unidades = todasUnidades.filter(u => u.pavimento == pavimentoSelecionado);
+        
+        if (unidades.length === 0) {
+          document.getElementById('tabelaUnidades').innerHTML = 
+            '<tr><td colspan="5" style="text-align:center; padding: 40px;">Nenhuma unidade encontrada neste pavimento. <a href="/empreendimentos.html">Gere as unidades primeiro</a>.</td></tr>';
+          return;
+        }
+        
+        renderizarTabela();
+      } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao carregar unidades');
+      }
+    }
+
+    // ==================== CARREGAR DISTRIBUIÇÃO EXISTENTE ====================
+    async function carregarDistribuicaoExistente() {
+      try {
+        const response = await fetch('/api/distribuicao/contrato/' + contratoSelecionado.id);
+        const todasDist = await response.json();
+        
+        // Filtrar distribuições do pavimento selecionado
+        distribuicaoAtual = todasDist.filter(d => d.pavimento == pavimentoSelecionado);
+        
+        // Aplicar valores na tabela
+        distribuicaoAtual.forEach(dist => {
+          const input = document.getElementById('metragem_' + dist.unidade_id);
+          if (input) {
+            input.value = parseFloat(dist.metragem_contratada).toFixed(2);
+          }
+          
+          const inputCoef = document.getElementById('coef_' + dist.unidade_id);
+          if (inputCoef) {
+            inputCoef.value = parseFloat(dist.coeficiente).toFixed(2);
+          }
+        });
+        
+        calcularTotais();
+      } catch (error) {
+        console.error('Erro:', error);
+      }
+    }
+
+    // ==================== RENDERIZAR TABELA ====================
+    function renderizarTabela() {
+      const tbody = document.getElementById('tabelaUnidades');
+      tbody.innerHTML = '';
+      
+      unidades.forEach(unidade => {
+        const tr = document.createElement('tr');
+        
+        const tipoBadge = unidade.tipo === 'hall' 
+          ? '<span style="background: #f59e0b; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">HALL</span>'
+          : '<span style="background: #3b82f6; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">APT</span>';
+        
+        tr.innerHTML = `
+          <td>${unidade.bloco}</td>
+          <td><strong>${unidade.numero_unidade}</strong></td>
+          <td>${tipoBadge}</td>
+          <td>
+            <input 
+              type="number" 
+              id="coef_${unidade.id}" 
+              value="1.00" 
+              step="0.01" 
+              min="0.01"
+              style="width: 80px; padding: 6px; border: 2px solid #e2e8f0; border-radius: 4px; text-align: center;"
+              onchange="calcularTotais()"
+            >
+          </td>
+          <td>
+            <input 
+              type="number" 
+              id="metragem_${unidade.id}" 
+              value="0.00" 
+              step="0.01" 
+              min="0"
+              style="width: 120px; padding: 8px 12px; border: 2px solid #e2e8f0; border-radius: 4px; font-weight: 600;"
+              onchange="calcularTotais()"
+            >
+          </td>
+        `;
+        
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ==================== DISTRIBUIR AUTOMATICAMENTE ====================
+    function distribuirAutomaticamente() {
+      if (!contratoSelecionado || !pavimentoSelecionado) {
+        alert('Selecione um contrato e pavimento primeiro');
+        return;
+      }
+      
+      const metragemPorPav = JSON.parse(contratoSelecionado.metragem_por_pavimento);
+      const metragemTotal = parseFloat(metragemPorPav[pavimentoSelecionado]);
+      
+      // Separar halls e apartamentos
+      const apartamentos = unidades.filter(u => u.tipo === 'apartamento');
+      const halls = unidades.filter(u => u.tipo === 'hall');
+      
+      // Calcular soma dos coeficientes
+      let somaCoeficientes = 0;
+      apartamentos.forEach(apto => {
+        const coef = parseFloat(document.getElementById('coef_' + apto.id).value) || 1.0;
+        somaCoeficientes += coef;
+      });
+      
+      // Metragem dos halls (fixo, igual para todos)
+      const metragemHallTotal = halls.length > 0 ? 10.0 * halls.length : 0;
+      const metragemParaApartamentos = metragemTotal - metragemHallTotal;
+      
+      // Distribuir para apartamentos proporcionalmente aos coeficientes
+      apartamentos.forEach(apto => {
+        const coef = parseFloat(document.getElementById('coef_' + apto.id).value) || 1.0;
+        const metragem = (metragemParaApartamentos * coef / somaCoeficientes).toFixed(2);
+        document.getElementById('metragem_' + apto.id).value = metragem;
+      });
+      
+      // Distribuir para halls
+      halls.forEach(hall => {
+        document.getElementById('metragem_' + hall.id).value = '10.00';
+      });
+      
+      calcularTotais();
+    }
+
+    // ==================== LIMPAR DISTRIBUIÇÃO ====================
+    function limparDistribuicao() {
+      if (!confirm('Deseja limpar todas as metragens?')) return;
+      
+      unidades.forEach(u => {
+        document.getElementById('metragem_' + u.id).value = '0.00';
+        document.getElementById('coef_' + u.id).value = '1.00';
+      });
+      
+      calcularTotais();
+    }
+
+    // ==================== CALCULAR TOTAIS ====================
+    function calcularTotais() {
+      const metragemPorPav = JSON.parse(contratoSelecionado.metragem_por_pavimento);
+      const metragemContratada = parseFloat(metragemPorPav[pavimentoSelecionado]);
+      
+      let somaDistribuida = 0;
+      unidades.forEach(u => {
+        const metragem = parseFloat(document.getElementById('metragem_' + u.id).value) || 0;
+        somaDistribuida += metragem;
+      });
+      
+      const diferenca = metragemContratada - somaDistribuida;
+      
+      document.getElementById('metragemDistribuida').textContent = somaDistribuida.toFixed(2) + ' m²';
+      document.getElementById('diferenca').textContent = diferenca.toFixed(2) + ' m²';
+      
+      // Validação visual
+      const alertaDiv = document.getElementById('alertaValidacao');
+      if (Math.abs(diferenca) < 0.01) {
+        alertaDiv.style.display = 'block';
+        alertaDiv.style.background = '#d1fae5';
+        alertaDiv.style.color = '#065f46';
+        alertaDiv.innerHTML = '✓ A soma está correta! Você pode salvar a distribuição.';
+      } else {
+        alertaDiv.style.display = 'block';
+        alertaDiv.style.background = '#fee2e2';
+        alertaDiv.style.color = '#991b1b';
+        alertaDiv.innerHTML = `⚠️ ATENÇÃO: A soma (${somaDistribuida.toFixed(2)} m²) não bate com o contratado (${metragemContratada.toFixed(2)} m²). Diferença: ${diferenca.toFixed(2)} m²`;
+      }
+    }
+
+    // ==================== SALVAR DISTRIBUIÇÃO ====================
+    async function salvarDistribuicao() {
+      const metragemPorPav = JSON.parse(contratoSelecionado.metragem_por_pavimento);
+      const metragemContratada = parseFloat(metragemPorPav[pavimentoSelecionado]);
+      
+      let somaDistribuida = 0;
+      const distribuicoes = [];
+      
+      unidades.forEach(u => {
+        const metragem = parseFloat(document.getElementById('metragem_' + u.id).value) || 0;
+        const coef = parseFloat(document.getElementById('coef_' + u.id).value) || 1.0;
+        
+        somaDistribuida += metragem;
+        
+        if (metragem > 0) {
+          distribuicoes.push({
+            unidade_id: u.id,
+            bloco: u.bloco,
+            pavimento: u.pavimento,
+            metragem_contratada: metragem,
+            coeficiente: coef
+          });
+        }
+      });
+      
+      // Validação
+      const diferenca = Math.abs(metragemContratada - somaDistribuida);
+      if (diferenca > 0.01) {
+        if (!confirm(`ATENÇÃO: A soma (${somaDistribuida.toFixed(2)} m²) não bate com o contratado (${metragemContratada.toFixed(2)} m²).\n\nDeseja salvar mesmo assim?`)) {
+          return;
+        }
+      }
+      
+      try {
+        const response = await fetch('/api/distribuicao/salvar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contrato_id: contratoSelecionado.id,
+            distribuicoes: distribuicoes
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+          alert('Distribuição salva com sucesso!');
+        } else {
+          alert('Erro: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao salvar distribuição');
+      }
+    }
+
+    // ==================== INICIALIZAR ====================
+    document.addEventListener('DOMContentLoaded', () => {
+      carregarContratos();
+    });
+  </script>
+
+</body>
+</html>
