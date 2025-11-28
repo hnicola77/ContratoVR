@@ -10,10 +10,6 @@ async function carregarContratos() {
   try {
     const response = await fetch('/api/contratos');
     if (!response.ok) {
-      if (response.status === 401) {
-        window.location.href = '/login.html';
-        return;
-      }
       throw new Error('Erro ao carregar contratos');
     }
     
