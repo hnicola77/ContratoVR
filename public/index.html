@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>ContratosVR - Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</head>
+<body>
+
+  <div class="top-menu">
+    <a href="/home.html">🏠 Módulos</a>
+    <a class="ativo" href="/contratosvr/index.html">Contratos</a>
+    <a href="/contratosvr/empreendimentos.html">Empreendimentos</a>
+    <a href="/contratosvr/distribuicao.html">Distribuição</a>
+    <a href="/contratosvr/execucao.html">Execução</a>
+    
+    <div style="margin-left: auto;">
+      <span id="usuarioLogado" style="margin-right: 16px; color: #64748b;"></span>
+      <button class="btn-secondary" onclick="logout()">Sair</button>
+    </div>
+  </div>
+
+  <div class="container">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+      <h1 style="margin: 0;">🏗️ ContratosVR - Dashboard</h1>
+      <button class="btn-primary" onclick="window.location.href='/contratosvr/novo-contrato.html'">
+        ➕ Novo Contrato
+      </button>
+    </div>
+
+    <!-- Cards de Resumo -->
+    <div class="cards">
+      <div class="card card-animated" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+        <div class="card-icon">📊</div>
+        <h2>Total Contratos</h2>
+        <p class="card-number" id="cardTotalContratos">0</p>
+      </div>
+
+      <div class="card card-animated" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white;">
+        <div class="card-icon">✅</div>
+        <h2>Ativos</h2>
+        <p class="card-number" id="cardAtivos">0</p>
+      </div>
+
+      <div class="card card-animated" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+        <div class="card-icon">📏</div>
+        <h2>Metragem Total</h2>
+        <p class="card-number" id="cardMetragemTotal">0 m²</p>
+      </div>
+
+      <div class="card card-animated" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
+        <div class="card-icon">💰</div>
+        <h2>Valor Total</h2>
+        <p class="card-number" id="cardValorTotal">R$ 0</p>
+      </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="filtros-modernos" style="margin-top: 32px;">
+      <div class="filtro-item">
+        <label>🔍 Busca Rápida</label>
+        <input type="text" id="buscaRapida" placeholder="Número do contrato..." onkeyup="filtrarContratos()">
+      </div>
+      
+      <div class="filtro-item">
+        <label>🏢 Empreendimento</label>
+        <select id="filtroEmpreendimento" onchange="filtrarContratos()">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      
+      <div class="filtro-item">
+        <label>📋 Status</label>
+        <select id="filtroStatus" onchange="filtrarContratos()">
+          <option value="">Todos</option>
+          <option value="ativo">Ativo</option>
+          <option value="pausado">Pausado</option>
+          <option value="encerrado">Encerrado</option>
+        </select>
+      </div>
+
+      <div class="filtro-buttons">
+        <button class="btn-secondary" onclick="limparFiltros()">🗑️ Limpar</button>
+      </div>
+    </div>
+
+    <!-- Tabela de Contratos -->
+    <div class="table-container" style="margin-top: 24px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Número</th>
+            <th>Empreendimento</th>
+            <th>Tipo</th>
+            <th>Metragem</th>
+            <th>Valor Total</th>
+            <th>Status</th>
+            <th>% Executado</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaContratos">
+          <tr>
+            <td colspan="8" style="text-align: center; padding: 40px;">
+              Carregando contratos...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script src="/contratosvr/contratos.js"></script>
+  
+  <script>
+    // Logout
+    function logout() {
+      fetch('/auth/logout', { method: 'POST' })
+        .then(() => window.location.href = '/login.html')
+        .catch(err => console.error('Erro ao fazer logout:', err));
+    }
+
+    // Verificar usuário logado
+    fetch('/api/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.username) {
+          document.getElementById('usuarioLogado').textContent = `👤 ${data.username}`;
+        }
+      })
+      .catch(() => {
+        window.location.href = '/login.html';
+      });
+  </script>
+
+</body>
+</html>
