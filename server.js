@@ -215,108 +215,13 @@ db.serialize(() => {
   console.log("✅ Tabelas do ContratosVR criadas/verificadas");
 });
 
-// ==================== MIDDLEWARES DE AUTENTICAÇÃO ====================
-
-const rotasPublicas = ["/login.html", "/auth/login", "/styles.css", "/favicon.ico"];
-
-app.use((req, res, next) => {
-  const isPublic = rotasPublicas.includes(req.path) || req.path.startsWith("/public/");
-
-  if (isPublic) {
-    return next();
-  }
-
-  if (req.path === "/auth/logout") {
-    return next();
-  }
-
-  if (!req.session.userId) {
-    if (req.path.startsWith("/api")) {
-      return res.status(401).json({ error: "Não autenticado" });
-    }
-    return res.redirect("/login.html");
-  }
-
-  next();
-});
-
-function requireAuth(req, res, next) {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ error: "Não autenticado" });
-  }
-  next();
-}
-
-function requireAdmin(req, res, next) {
-  if (!req.session.userId) {
-    return res.status(401).json({ error: "Não autenticado" });
-  }
-  if (req.session.role !== "admin") {
-    return res.status(403).json({ error: "Acesso restrito a administradores" });
-  }
-  next();
-}
-
-// ==================== AUTENTICAÇÃO ====================
-
-app.post("/auth/login", (req, res) => {
-  const { username, password } = req.body || {};
-
-  if (!username || !password) {
-    return res.status(400).json({ error: "Informe usuário e senha" });
-  }
-
-  db.get(
-    `SELECT id, username, password_hash, role FROM users WHERE username = ?`,
-    [username],
-    (err, user) => {
-      if (err) {
-        console.error("Erro ao buscar usuário:", err);
-        return res.status(500).json({ error: "Erro ao autenticar" });
-      }
-
-      if (!user) {
-        return res.status(401).json({ error: "Usuário ou senha inválidos" });
-      }
-
-      const validPassword = bcrypt.compareSync(password, user.password_hash);
-      if (!validPassword) {
-        return res.status(401).json({ error: "Usuário ou senha inválidos" });
-      }
-
-      req.session.userId = user.id;
-      req.session.username = user.username;
-      req.session.role = user.role;
-
-      res.json({
-        message: "Login realizado com sucesso",
-        username: user.username,
-        role: user.role
-      });
-    }
-  );
-});
-
-app.post("/auth/logout", (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).json({ error: "Erro ao fazer logout" });
-    }
-    res.json({ message: "Logout realizado" });
-  });
-});
-
-app.get("/api/me", requireAuth, (req, res) => {
-  res.json({
-    username: req.session.username,
-    role: req.session.role
-  });
-});
+// ==================== SEM AUTENTICAÇÃO - ACESSO DIRETO ====================
+// Sistema sem login - integrado com EngVR/ChaveVR
 
 // ==================== ROTAS DA API ====================
 
 // 1. LISTAR TODOS OS CONTRATOS
-app.get("/api/contratos", requireAuth, (req, res) => {
+app.get("/api/contratos", (req, res) => {
   const sql = `
     SELECT 
       c.*,
@@ -341,7 +246,7 @@ app.get("/api/contratos", requireAuth, (req, res) => {
 });
 
 // 2. BUSCAR UM CONTRATO
-app.get("/api/contratos/:id", requireAuth, (req, res) => {
+app.get("/api/contratos/:id", (req, res) => {
   const { id } = req.params;
   
   const sql = `
@@ -371,7 +276,7 @@ app.get("/api/contratos/:id", requireAuth, (req, res) => {
 });
 
 // 3. CRIAR CONTRATO
-app.post("/api/contratos", requireAuth, (req, res) => {
+app.post("/api/contratos", (req, res) => {
   const {
     numero_contrato_oerp,
     empreendimento_id,
@@ -427,7 +332,7 @@ app.post("/api/contratos", requireAuth, (req, res) => {
 });
 
 // 4. LISTAR EMPREENDIMENTOS
-app.get("/api/empreendimentos", requireAuth, (req, res) => {
+app.get("/api/empreendimentos", (req, res) => {
   db.all("SELECT * FROM empreendimentos WHERE ativo = 1 ORDER BY nome", [], (err, rows) => {
     if (err) {
       console.error("Erro ao listar empreendimentos:", err);
@@ -438,7 +343,7 @@ app.get("/api/empreendimentos", requireAuth, (req, res) => {
 });
 
 // 5. CRIAR EMPREENDIMENTO
-app.post("/api/empreendimentos", requireAuth, (req, res) => {
+app.post("/api/empreendimentos", (req, res) => {
   const {
     nome,
     quantidade_blocos,
@@ -484,7 +389,7 @@ app.post("/api/empreendimentos", requireAuth, (req, res) => {
   });
 });
 
-// ==================== ROTA RAIZ ====================
+// ==================== ROTA RAIZ - ACESSO DIRETO ====================
 app.get("/", (req, res) => {
   res.redirect("/index.html");
 });
