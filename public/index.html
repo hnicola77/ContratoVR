@@ -16,8 +16,7 @@
     <a href="/execucao.html">Execução</a>
     
     <div style="margin-left: auto;">
-      <span id="usuarioLogado" style="margin-right: 16px; color: #64748b;"></span>
-      <button class="btn-secondary" onclick="logout()">Sair</button>
+      <span style="margin-right: 16px; color: #64748b;">🏗️ ContratosVR</span>
     </div>
   </div>
 
@@ -114,27 +113,6 @@
   </div>
 
   <script src="/app.js"></script>
-  
-  <script>
-    // Logout
-    function logout() {
-      fetch('/auth/logout', { method: 'POST' })
-        .then(() => window.location.href = '/login.html')
-        .catch(err => console.error('Erro ao fazer logout:', err));
-    }
-
-    // Verificar usuário logado
-    fetch('/api/me')
-      .then(res => res.json())
-      .then(data => {
-        if (data.username) {
-          document.getElementById('usuarioLogado').textContent = `👤 ${data.username}`;
-        }
-      })
-      .catch(() => {
-        window.location.href = '/login.html';
-      });
-  </script>
 
 </body>
 </html>
