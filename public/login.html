@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Login - ContratosVR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+  
+  <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;">
+    <div style="background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); padding: 48px; max-width: 420px; width: 100%;">
+      
+      <div style="text-align: center; margin-bottom: 32px;">
+        <h1 style="margin: 0; font-size: 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+          🏗️ ContratosVR
+        </h1>
+        <p style="color: #64748b; margin-top: 8px;">Sistema de Controle de Contratos</p>
+      </div>
+
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 8px; color: #334155; font-weight: 500;">
+            Usuário
+          </label>
+          <input 
+            type="text" 
+            id="username" 
+            required
+            style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px; transition: all 0.2s;"
+            onfocus="this.style.borderColor='#667eea'"
+            onblur="this.style.borderColor='#e2e8f0'"
+          />
+        </div>
+
+        <div style="margin-bottom: 24px;">
+          <label style="display: block; margin-bottom: 8px; color: #334155; font-weight: 500;">
+            Senha
+          </label>
+          <input 
+            type="password" 
+            id="password" 
+            required
+            style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px; transition: all 0.2s;"
+            onfocus="this.style.borderColor='#667eea'"
+            onblur="this.style.borderColor='#e2e8f0'"
+          />
+        </div>
+
+        <button 
+          type="submit" 
+          id="btnLogin"
+          style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;"
+          onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(102, 126, 234, 0.4)'"
+          onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'"
+        >
+          Entrar
+        </button>
+      </form>
+
+      <div id="errorMessage" style="margin-top: 16px; padding: 12px; background: #fee2e2; color: #991b1b; border-radius: 8px; display: none;"></div>
+
+      <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #e2e8f0; text-align: center; color: #64748b; font-size: 14px;">
+        <p>Credenciais padrão:</p>
+        <p><strong>Usuário:</strong> admin | <strong>Senha:</strong> admin123</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function handleLogin(event) {
+      event.preventDefault();
+      
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const btnLogin = document.getElementById('btnLogin');
+      const errorMessage = document.getElementById('errorMessage');
+      
+      btnLogin.disabled = true;
+      btnLogin.textContent = 'Entrando...';
+      errorMessage.style.display = 'none';
+      
+      try {
+        const response = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          window.location.href = '/index.html';
+        } else {
+          errorMessage.textContent = data.error || 'Erro ao fazer login';
+          errorMessage.style.display = 'block';
+        }
+      } catch (error) {
+        errorMessage.textContent = 'Erro de conexão. Tente novamente.';
+        errorMessage.style.display = 'block';
+      } finally {
+        btnLogin.disabled = false;
+        btnLogin.textContent = 'Entrar';
+      }
+    }
+  </script>
+
+</body>
+</html>
