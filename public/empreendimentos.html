@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Empreendimentos - ContratosVR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+  <div class="top-menu">
+    <a href="/index.html">Contratos</a>
+    <a class="ativo" href="/empreendimentos.html">Empreendimentos</a>
+    <a href="/distribuicao.html">Distribuição</a>
+    <a href="/execucao.html">Execução</a>
+    
+    <div style="margin-left: auto;">
+      <span style="margin-right: 16px; color: #64748b;">🏗️ ContratosVR</span>
+    </div>
+  </div>
+
+  <div class="container">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+      <h1 style="margin: 0;">🏢 Empreendimentos</h1>
+      <button class="btn-primary" onclick="abrirModal()">
+        ➕ Novo Empreendimento
+      </button>
+    </div>
+
+    <!-- Tabela de Empreendimentos -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Blocos</th>
+            <th>Pavimentos/Bloco</th>
+            <th>Aptos/Pavimento</th>
+            <th>Halls</th>
+            <th>Total Unidades</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaEmpreendimentos">
+          <tr>
+            <td colspan="7" style="text-align: center; padding: 40px;">
+              Carregando empreendimentos...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- Modal de Cadastro -->
+  <div id="modalEmpreendimento" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+    <div style="background: white; max-width: 600px; margin: 50px auto; border-radius: 16px; padding: 32px;">
+      
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h2 style="margin: 0;">Novo Empreendimento</h2>
+        <button onclick="fecharModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">×</button>
+      </div>
+
+      <form id="formEmpreendimento" onsubmit="salvarEmpreendimento(event)">
+        
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 8px; font-weight: 500;">
+            Nome do Empreendimento *
+          </label>
+          <input type="text" id="nome" required style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;" placeholder="Ex: Residencial Vista Verde">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+          <div>
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">
+              Quantidade de Blocos *
+            </label>
+            <input type="number" id="quantidade_blocos" required min="1" value="1" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+          </div>
+
+          <div>
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">
+              Pavimentos por Bloco *
+            </label>
+            <input type="number" id="quantidade_pavimentos_por_bloco" required min="1" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+          <div>
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">
+              Apartamentos por Pavimento *
+            </label>
+            <input type="number" id="quantidade_apartamentos_por_pavimento" required min="1" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+          </div>
+
+          <div>
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">
+              Existem Halls?
+            </label>
+            <select id="existem_halls" onchange="toggleHalls()" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+              <option value="0">Não</option>
+              <option value="1">Sim</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="divHalls" style="display: none; margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 8px; font-weight: 500;">
+            Halls por Pavimento
+          </label>
+          <input type="number" id="quantidade_halls_por_pavimento" min="0" value="1" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 8px; font-weight: 500;">
+            Observações
+          </label>
+          <textarea id="observacoes" rows="3" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;" placeholder="Informações adicionais..."></textarea>
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+          <button type="submit" class="btn-primary" style="flex: 1;">Salvar</button>
+          <button type="button" class="btn-secondary" onclick="fecharModal()" style="flex: 1;">Cancelar</button>
+        </div>
+
+      </form>
+
+    </div>
+  </div>
+
+  <script>
+    let empreendimentos = [];
+
+    // ==================== CARREGAR EMPREENDIMENTOS ====================
+    async function carregarEmpreendimentos() {
+      try {
+        const response = await fetch('/api/empreendimentos');
+        if (!response.ok) throw new Error('Erro ao carregar');
+        
+        empreendimentos = await response.json();
+        renderizarTabela();
+      } catch (error) {
+        console.error('Erro:', error);
+        document.getElementById('tabelaEmpreendimentos').innerHTML = 
+          '<tr><td colspan="7" style="text-align:center; color: #ef4444;">Erro ao carregar empreendimentos</td></tr>';
+      }
+    }
+
+    // ==================== RENDERIZAR TABELA ====================
+    function renderizarTabela() {
+      const tbody = document.getElementById('tabelaEmpreendimentos');
+      
+      if (empreendimentos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 40px;">Nenhum empreendimento cadastrado</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = '';
+      
+      empreendimentos.forEach(emp => {
+        const totalUnidades = emp.quantidade_blocos * emp.quantidade_pavimentos_por_bloco * 
+          (emp.quantidade_apartamentos_por_pavimento + (emp.existem_halls ? emp.quantidade_halls_por_pavimento : 0));
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${emp.nome}</strong></td>
+          <td>${emp.quantidade_blocos}</td>
+          <td>${emp.quantidade_pavimentos_por_bloco}</td>
+          <td>${emp.quantidade_apartamentos_por_pavimento}</td>
+          <td>${emp.existem_halls ? 'Sim (' + emp.quantidade_halls_por_pavimento + ')' : 'Não'}</td>
+          <td><strong>${totalUnidades}</strong></td>
+          <td>
+            <button class="btn-small" onclick="gerarUnidades(${emp.id})" title="Gerar unidades">🏗️</button>
+            <button class="btn-small" onclick="verUnidades(${emp.id})" title="Ver unidades">👁️</button>
+            <button class="btn-small" onclick="deletarEmpreendimento(${emp.id})" title="Deletar">🗑️</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ==================== ABRIR/FECHAR MODAL ====================
+    function abrirModal() {
+      document.getElementById('modalEmpreendimento').style.display = 'block';
+    }
+
+    function fecharModal() {
+      document.getElementById('modalEmpreendimento').style.display = 'none';
+      document.getElementById('formEmpreendimento').reset();
+    }
+
+    function toggleHalls() {
+      const existem = document.getElementById('existem_halls').value === '1';
+      document.getElementById('divHalls').style.display = existem ? 'block' : 'none';
+    }
+
+    // ==================== SALVAR EMPREENDIMENTO ====================
+    async function salvarEmpreendimento(event) {
+      event.preventDefault();
+      
+      const dados = {
+        nome: document.getElementById('nome').value,
+        quantidade_blocos: parseInt(document.getElementById('quantidade_blocos').value),
+        quantidade_pavimentos_por_bloco: parseInt(document.getElementById('quantidade_pavimentos_por_bloco').value),
+        quantidade_apartamentos_por_pavimento: parseInt(document.getElementById('quantidade_apartamentos_por_pavimento').value),
+        existem_halls: document.getElementById('existem_halls').value === '1',
+        quantidade_halls_por_pavimento: parseInt(document.getElementById('quantidade_halls_por_pavimento').value) || 0,
+        observacoes: document.getElementById('observacoes').value
+      };
+      
+      try {
+        const response = await fetch('/api/empreendimentos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dados)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+          alert('Empreendimento criado com sucesso!');
+          fecharModal();
+          carregarEmpreendimentos();
+        } else {
+          alert('Erro: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao salvar empreendimento');
+      }
+    }
+
+    // ==================== GERAR UNIDADES ====================
+    async function gerarUnidades(empId) {
+      if (!confirm('Deseja gerar automaticamente todas as unidades deste empreendimento?')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/unidades/criar-automatico', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ empreendimento_id: empId })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+          alert(result.message + '\nTotal: ' + result.total + '\nCriadas: ' + result.inserted + '\nDuplicadas: ' + result.duplicated);
+        } else {
+          alert('Erro: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao gerar unidades');
+      }
+    }
+
+    // ==================== VER UNIDADES ====================
+    async function verUnidades(empId) {
+      try {
+        const response = await fetch('/api/unidades/empreendimento/' + empId);
+        const unidades = await response.json();
+        
+        if (unidades.length === 0) {
+          alert('Nenhuma unidade cadastrada ainda. Clique em 🏗️ para gerar automaticamente.');
+          return;
+        }
+        
+        let texto = 'Unidades cadastradas:\n\n';
+        unidades.forEach(u => {
+          texto += `${u.bloco} - Pav ${u.pavimento} - ${u.numero_unidade} (${u.tipo})\n`;
+        });
+        
+        alert(texto);
+      } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao carregar unidades');
+      }
+    }
+
+    // ==================== DELETAR ====================
+    async function deletarEmpreendimento(id) {
+      if (!confirm('Deseja realmente deletar este empreendimento?')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/empreendimentos/' + id, {
+          method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+          alert('Empreendimento deletado com sucesso!');
+          carregarEmpreendimentos();
+        } else {
+          alert('Erro: ' + result.error);
+        }
+      } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao deletar empreendimento');
+      }
+    }
+
+    // ==================== INICIALIZAR ====================
+    document.addEventListener('DOMContentLoaded', () => {
+      carregarEmpreendimentos();
+    });
+  </script>
+
+</body>
+</html>
