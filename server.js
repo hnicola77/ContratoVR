@@ -1,6 +1,6 @@
 // ==================== CONTRATOS VR - SERVER.JS COMPLETO ====================
 // Sistema de Distribuição de Metragem por Unidade
-// Versão Standalone - SEM LOGIN
+// Versão 3.0 - CORRIGIDA
 
 const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
@@ -13,15 +13,15 @@ const PORT = process.env.PORT || 3002;
 // ==================== MIDDLEWARES ====================
 
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Servir arquivos estáticos
 app.use(express.static(path.join(__dirname, "public")));
 
 // ==================== BANCO DE DADOS ====================
 
-const dbPath = process.env.DATABASE_PATH || "/data/contratosvr.db";
+const dbPath = process.env.DATABASE_PATH || "./data/contratosvr.db";
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error("❌ Erro ao conectar no banco:", err);
@@ -34,16 +34,11 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 db.serialize(() => {
   
-  // 1. TABELA DE EMPREENDIMENTOS
+  // 1. TABELA DE EMPREENDIMENTOS (simplificada)
   db.run(`
     CREATE TABLE IF NOT EXISTS empreendimentos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nome TEXT NOT NULL,
-      quantidade_blocos INTEGER NOT NULL DEFAULT 1,
-      quantidade_pavimentos_por_bloco INTEGER NOT NULL,
-      quantidade_apartamentos_por_pavimento INTEGER NOT NULL,
-      existem_halls INTEGER DEFAULT 0,
-      quantidade_halls_por_pavimento INTEGER DEFAULT 0,
       observacoes TEXT,
       ativo INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
@@ -51,7 +46,23 @@ db.serialize(() => {
     )
   `);
 
-  // 2. TABELA DE CONTRATOS
+  // 2. TABELA DE BLOCOS (novo - cada bloco pode ter config diferente)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS blocos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      empreendimento_id INTEGER NOT NULL,
+      nome TEXT NOT NULL,
+      quantidade_pavimentos INTEGER NOT NULL,
+      quantidade_apartamentos_por_pavimento INTEGER NOT NULL,
+      existem_halls INTEGER DEFAULT 0,
+      quantidade_halls_por_pavimento INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      FOREIGN KEY (empreendimento_id) REFERENCES empreendimentos(id) ON DELETE CASCADE,
+      UNIQUE(empreendimento_id, nome)
+    )
+  `);
+
+  // 3. TABELA DE CONTRATOS
   db.run(`
     CREATE TABLE IF NOT EXISTS contratos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,12 +83,13 @@ db.serialize(() => {
     )
   `);
 
-  // 3. TABELA DE UNIDADES
+  // 4. TABELA DE UNIDADES
   db.run(`
     CREATE TABLE IF NOT EXISTS unidades (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       empreendimento_id INTEGER NOT NULL,
-      bloco TEXT NOT NULL,
+      bloco_id INTEGER NOT NULL,
+      bloco_nome TEXT NOT NULL,
       pavimento INTEGER NOT NULL,
       numero_unidade TEXT NOT NULL,
       tipo TEXT NOT NULL CHECK(tipo IN ('apartamento', 'hall')),
@@ -85,12 +97,13 @@ db.serialize(() => {
       area_total REAL,
       observacoes TEXT,
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
-      FOREIGN KEY (empreendimento_id) REFERENCES empreendimentos(id),
-      UNIQUE(empreendimento_id, bloco, pavimento, numero_unidade)
+      FOREIGN KEY (empreendimento_id) REFERENCES empreendimentos(id) ON DELETE CASCADE,
+      FOREIGN KEY (bloco_id) REFERENCES blocos(id) ON DELETE CASCADE,
+      UNIQUE(empreendimento_id, bloco_nome, pavimento, numero_unidade)
     )
   `);
 
-  // 4. TABELA DE DISTRIBUIÇÃO
+  // 5. TABELA DE DISTRIBUIÇÃO
   db.run(`
     CREATE TABLE IF NOT EXISTS distribuicao (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -109,7 +122,7 @@ db.serialize(() => {
     )
   `);
 
-  // 5. TABELA DE EXECUÇÃO
+  // 6. TABELA DE EXECUÇÃO
   db.run(`
     CREATE TABLE IF NOT EXISTS execucao (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,8 +144,10 @@ db.serialize(() => {
 
   // CRIAR ÍNDICES
   db.run(`CREATE INDEX IF NOT EXISTS idx_contratos_empreendimento ON contratos(empreendimento_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_blocos_empreendimento ON blocos(empreendimento_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_unidades_bloco ON unidades(bloco_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_distribuicao_contrato ON distribuicao(contrato_id)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_execucao_unidade ON execucao(contrato_id, unidade_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_execucao_contrato ON execucao(contrato_id)`);
 
   console.log("✅ Tabelas do ContratosVR criadas/verificadas");
 });
@@ -152,64 +167,92 @@ app.get("/api/empreendimentos", (req, res) => {
   });
 });
 
-// BUSCAR UM EMPREENDIMENTO
+// BUSCAR UM EMPREENDIMENTO COM BLOCOS
 app.get("/api/empreendimentos/:id", (req, res) => {
   const { id } = req.params;
-  db.get("SELECT * FROM empreendimentos WHERE id = ?", [id], (err, row) => {
+  
+  db.get("SELECT * FROM empreendimentos WHERE id = ?", [id], (err, emp) => {
     if (err) {
       console.error("Erro ao buscar empreendimento:", err);
       return res.status(500).json({ error: "Erro ao buscar empreendimento" });
     }
-    if (!row) {
+    if (!emp) {
       return res.status(404).json({ error: "Empreendimento não encontrado" });
     }
-    res.json(row);
+    
+    // Buscar blocos
+    db.all("SELECT * FROM blocos WHERE empreendimento_id = ? ORDER BY nome", [id], (err2, blocos) => {
+      if (err2) {
+        console.error("Erro ao buscar blocos:", err2);
+        return res.status(500).json({ error: "Erro ao buscar blocos" });
+      }
+      
+      emp.blocos = blocos;
+      res.json(emp);
+    });
   });
 });
 
-// CRIAR EMPREENDIMENTO
+// CRIAR EMPREENDIMENTO COM BLOCOS
 app.post("/api/empreendimentos", (req, res) => {
-  const {
-    nome,
-    quantidade_blocos,
-    quantidade_pavimentos_por_bloco,
-    quantidade_apartamentos_por_pavimento,
-    existem_halls,
-    quantidade_halls_por_pavimento,
-    observacoes
-  } = req.body;
+  const { nome, observacoes, blocos } = req.body;
   
-  if (!nome || !quantidade_pavimentos_por_bloco || !quantidade_apartamentos_por_pavimento) {
-    return res.status(400).json({ error: "Campos obrigatórios faltando" });
+  if (!nome) {
+    return res.status(400).json({ error: "Nome é obrigatório" });
   }
   
-  const sql = `
-    INSERT INTO empreendimentos (
-      nome, quantidade_blocos, quantidade_pavimentos_por_bloco,
-      quantidade_apartamentos_por_pavimento, existem_halls,
-      quantidade_halls_por_pavimento, observacoes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-  `;
+  if (!blocos || !Array.isArray(blocos) || blocos.length === 0) {
+    return res.status(400).json({ error: "Pelo menos um bloco é obrigatório" });
+  }
   
-  const params = [
-    nome,
-    quantidade_blocos || 1,
-    quantidade_pavimentos_por_bloco,
-    quantidade_apartamentos_por_pavimento,
-    existem_halls ? 1 : 0,
-    quantidade_halls_por_pavimento || 0,
-    observacoes || null
-  ];
+  // Criar empreendimento
+  const sqlEmp = "INSERT INTO empreendimentos (nome, observacoes) VALUES (?, ?)";
   
-  db.run(sql, params, function(err) {
+  db.run(sqlEmp, [nome, observacoes || null], function(err) {
     if (err) {
       console.error("Erro ao criar empreendimento:", err);
-      return res.status(500).json({ error: "Erro ao criar empreendimento" });
+      return res.status(500).json({ error: "Erro ao criar empreendimento: " + err.message });
     }
     
-    res.status(201).json({ 
-      id: this.lastID,
-      message: "Empreendimento criado com sucesso" 
+    const empId = this.lastID;
+    
+    // Criar blocos
+    const sqlBloco = `
+      INSERT INTO blocos (
+        empreendimento_id, nome, quantidade_pavimentos,
+        quantidade_apartamentos_por_pavimento, existem_halls, quantidade_halls_por_pavimento
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    
+    let savedBlocos = 0;
+    let errors = [];
+    
+    blocos.forEach((bloco, index) => {
+      db.run(sqlBloco, [
+        empId,
+        bloco.nome,
+        bloco.quantidade_pavimentos,
+        bloco.quantidade_apartamentos_por_pavimento,
+        bloco.existem_halls ? 1 : 0,
+        bloco.quantidade_halls_por_pavimento || 0
+      ], function(err) {
+        savedBlocos++;
+        
+        if (err) {
+          console.error("Erro ao salvar bloco:", err);
+          errors.push(err.message);
+        }
+        
+        if (savedBlocos === blocos.length) {
+          if (errors.length > 0) {
+            return res.status(500).json({ error: "Erros ao salvar blocos: " + errors.join(", ") });
+          }
+          res.status(201).json({ 
+            id: empId,
+            message: "Empreendimento criado com sucesso" 
+          });
+        }
+      });
     });
   });
 });
@@ -217,32 +260,17 @@ app.post("/api/empreendimentos", (req, res) => {
 // ATUALIZAR EMPREENDIMENTO
 app.put("/api/empreendimentos/:id", (req, res) => {
   const { id } = req.params;
-  const {
-    nome,
-    quantidade_blocos,
-    quantidade_pavimentos_por_bloco,
-    quantidade_apartamentos_por_pavimento,
-    existem_halls,
-    quantidade_halls_por_pavimento,
-    observacoes
-  } = req.body;
+  const { nome, observacoes } = req.body;
   
   const sql = `
     UPDATE empreendimentos SET
       nome = ?,
-      quantidade_blocos = ?,
-      quantidade_pavimentos_por_bloco = ?,
-      quantidade_apartamentos_por_pavimento = ?,
-      existem_halls = ?,
-      quantidade_halls_por_pavimento = ?,
       observacoes = ?,
       updated_at = datetime('now', 'localtime')
     WHERE id = ?
   `;
   
-  db.run(sql, [nome, quantidade_blocos, quantidade_pavimentos_por_bloco, 
-    quantidade_apartamentos_por_pavimento, existem_halls ? 1 : 0, 
-    quantidade_halls_por_pavimento, observacoes, id], function(err) {
+  db.run(sql, [nome, observacoes, id], function(err) {
     if (err) {
       console.error("Erro ao atualizar empreendimento:", err);
       return res.status(500).json({ error: "Erro ao atualizar empreendimento" });
@@ -269,13 +297,27 @@ app.delete("/api/empreendimentos/:id", (req, res) => {
   });
 });
 
+// ==================== BLOCOS ====================
+
+// LISTAR BLOCOS DE UM EMPREENDIMENTO
+app.get("/api/blocos/empreendimento/:empId", (req, res) => {
+  const { empId } = req.params;
+  db.all("SELECT * FROM blocos WHERE empreendimento_id = ? ORDER BY nome", [empId], (err, rows) => {
+    if (err) {
+      console.error("Erro ao listar blocos:", err);
+      return res.status(500).json({ error: "Erro ao listar blocos" });
+    }
+    res.json(rows);
+  });
+});
+
 // ==================== UNIDADES ====================
 
 // LISTAR UNIDADES DE UM EMPREENDIMENTO
 app.get("/api/unidades/empreendimento/:empId", (req, res) => {
   const { empId } = req.params;
   db.all(
-    "SELECT * FROM unidades WHERE empreendimento_id = ? ORDER BY bloco, pavimento, numero_unidade",
+    "SELECT * FROM unidades WHERE empreendimento_id = ? ORDER BY bloco_nome, pavimento, numero_unidade",
     [empId],
     (err, rows) => {
       if (err) {
@@ -295,42 +337,57 @@ app.post("/api/unidades/criar-automatico", (req, res) => {
     return res.status(400).json({ error: "empreendimento_id é obrigatório" });
   }
   
-  // Buscar configuração do empreendimento
-  db.get("SELECT * FROM empreendimentos WHERE id = ?", [empreendimento_id], (err, emp) => {
-    if (err || !emp) {
-      return res.status(404).json({ error: "Empreendimento não encontrado" });
+  // Buscar blocos do empreendimento
+  db.all("SELECT * FROM blocos WHERE empreendimento_id = ?", [empreendimento_id], (err, blocos) => {
+    if (err || blocos.length === 0) {
+      return res.status(404).json({ error: "Nenhum bloco encontrado para este empreendimento" });
     }
     
     const unidades = [];
     
-    // Gerar unidades para cada bloco/pavimento
-    for (let b = 1; b <= emp.quantidade_blocos; b++) {
-      const blocoNome = emp.quantidade_blocos > 1 ? `Bloco ${String.fromCharCode(64 + b)}` : 'Único';
-      
-      for (let p = 1; p <= emp.quantidade_pavimentos_por_bloco; p++) {
+    blocos.forEach(bloco => {
+      for (let p = 1; p <= bloco.quantidade_pavimentos; p++) {
         // Apartamentos
-        for (let a = 1; a <= emp.quantidade_apartamentos_por_pavimento; a++) {
+        for (let a = 1; a <= bloco.quantidade_apartamentos_por_pavimento; a++) {
           const numeroUnidade = `${p}${String(a).padStart(2, '0')}`;
-          unidades.push([empreendimento_id, blocoNome, p, numeroUnidade, 'apartamento', null]);
+          unidades.push([
+            empreendimento_id,
+            bloco.id,
+            bloco.nome,
+            p,
+            numeroUnidade,
+            'apartamento',
+            null
+          ]);
         }
         
-        // Hall (se existir)
-        if (emp.existem_halls) {
-          for (let h = 1; h <= emp.quantidade_halls_por_pavimento; h++) {
-            const numeroHall = emp.quantidade_halls_por_pavimento > 1 ? `Hall ${h}` : 'Hall';
-            unidades.push([empreendimento_id, blocoNome, p, numeroHall, 'hall', null]);
+        // Halls
+        if (bloco.existem_halls) {
+          for (let h = 1; h <= bloco.quantidade_halls_por_pavimento; h++) {
+            const numeroHall = bloco.quantidade_halls_por_pavimento > 1 ? `Hall ${h}` : 'Hall';
+            unidades.push([
+              empreendimento_id,
+              bloco.id,
+              bloco.nome,
+              p,
+              numeroHall,
+              'hall',
+              null
+            ]);
           }
         }
       }
-    }
+    });
     
-    // Inserir todas as unidades
-    const sql = "INSERT OR IGNORE INTO unidades (empreendimento_id, bloco, pavimento, numero_unidade, tipo, observacoes) VALUES (?, ?, ?, ?, ?, ?)";
+    // Inserir unidades
+    const sql = `INSERT OR IGNORE INTO unidades 
+      (empreendimento_id, bloco_id, bloco_nome, pavimento, numero_unidade, tipo, observacoes) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)`;
     
     let inserted = 0;
     let processed = 0;
     
-    unidades.forEach((unidade, index) => {
+    unidades.forEach(unidade => {
       db.run(sql, unidade, function(err) {
         processed++;
         if (!err && this.changes > 0) inserted++;
@@ -380,14 +437,7 @@ app.get("/api/contratos/:id", (req, res) => {
   const { id } = req.params;
   
   const sql = `
-    SELECT 
-      c.*,
-      e.nome as empreendimento_nome,
-      e.quantidade_blocos,
-      e.quantidade_pavimentos_por_bloco,
-      e.quantidade_apartamentos_por_pavimento,
-      e.existem_halls,
-      e.quantidade_halls_por_pavimento
+    SELECT c.*, e.nome as empreendimento_nome
     FROM contratos c
     LEFT JOIN empreendimentos e ON c.empreendimento_id = e.id
     WHERE c.id = ?
@@ -448,10 +498,10 @@ app.post("/api/contratos", (req, res) => {
   db.run(sql, params, function(err) {
     if (err) {
       console.error("Erro ao criar contrato:", err);
-      if (err.message.includes('UNIQUE')) {
+      if (err.message && err.message.includes('UNIQUE')) {
         return res.status(400).json({ error: "Número de contrato já existe" });
       }
-      return res.status(500).json({ error: "Erro ao criar contrato" });
+      return res.status(500).json({ error: "Erro ao criar contrato: " + err.message });
     }
     
     res.status(201).json({ 
@@ -544,13 +594,13 @@ app.get("/api/distribuicao/contrato/:contratoId", (req, res) => {
     SELECT 
       d.*,
       u.numero_unidade,
-      u.bloco,
+      u.bloco_nome as bloco,
       u.pavimento,
       u.tipo
     FROM distribuicao d
     LEFT JOIN unidades u ON d.unidade_id = u.id
     WHERE d.contrato_id = ?
-    ORDER BY u.bloco, u.pavimento, u.numero_unidade
+    ORDER BY u.bloco_nome, u.pavimento, u.numero_unidade
   `;
   
   db.all(sql, [contratoId], (err, rows) => {
@@ -587,7 +637,7 @@ app.post("/api/distribuicao/salvar", (req, res) => {
     let saved = 0;
     let errors = 0;
     
-    distribuicoes.forEach((dist, index) => {
+    distribuicoes.forEach(dist => {
       db.run(sql, [
         contrato_id,
         dist.unidade_id,
@@ -625,7 +675,7 @@ app.get("/api/execucao/contrato/:contratoId", (req, res) => {
     SELECT 
       e.*,
       u.numero_unidade,
-      u.bloco,
+      u.bloco_nome as bloco,
       u.pavimento,
       u.tipo
     FROM execucao e
@@ -667,7 +717,7 @@ app.post("/api/execucao/registrar", (req, res) => {
   db.run(sql, [contrato_id, unidade_id, metragem_executada, data_medicao, responsavel, observacoes], function(err) {
     if (err) {
       console.error("Erro ao registrar execução:", err);
-      return res.status(500).json({ error: "Erro ao registrar execução" });
+      return res.status(500).json({ error: "Erro ao registrar execução: " + err.message });
     }
     
     res.status(201).json({ 
@@ -686,7 +736,7 @@ app.get("/", (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({ 
     status: "online", 
-    version: "2.0.0",
+    version: "3.0.0",
     database: dbPath
   });
 });
