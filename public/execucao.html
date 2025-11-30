@@ -316,8 +316,8 @@
       execucoes.forEach(ex => {
         // Buscar metragem contratada
         const dist = distribuicoes.find(d => d.unidade_id === ex.unidade_id);
-        const metragen_contratada = dist ? parseFloat(dist.metragem_contratada) : 0;
-        const percentual = metragemcontratada > 0 
+        const metragem_contratada = dist ? parseFloat(dist.metragem_contratada) : 0;
+        const percentual = metragem_contratada > 0 
           ? ((parseFloat(ex.metragem_executada) / metragem_contratada) * 100).toFixed(1) 
           : 0;
         
