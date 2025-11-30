@@ -35,16 +35,13 @@
           <tr>
             <th>Nome</th>
             <th>Blocos</th>
-            <th>Pavimentos/Bloco</th>
-            <th>Aptos/Pavimento</th>
-            <th>Halls</th>
             <th>Total Unidades</th>
             <th>Ações</th>
           </tr>
         </thead>
         <tbody id="tabelaEmpreendimentos">
           <tr>
-            <td colspan="7" style="text-align: center; padding: 40px;">
+            <td colspan="4" style="text-align: center; padding: 40px;">
               Carregando empreendimentos...
             </td>
           </tr>
@@ -56,7 +53,7 @@
 
   <!-- Modal de Cadastro -->
   <div id="modalEmpreendimento" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
-    <div style="background: white; max-width: 600px; margin: 50px auto; border-radius: 16px; padding: 32px;">
+    <div style="background: white; max-width: 700px; margin: 50px auto; border-radius: 16px; padding: 32px;">
       
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
         <h2 style="margin: 0;">Novo Empreendimento</h2>
@@ -72,54 +69,25 @@
           <input type="text" id="nome" required style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;" placeholder="Ex: Residencial Vista Verde">
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
-          <div>
-            <label style="display: block; margin-bottom: 8px; font-weight: 500;">
-              Quantidade de Blocos *
-            </label>
-            <input type="number" id="quantidade_blocos" required min="1" value="1" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
-          </div>
-
-          <div>
-            <label style="display: block; margin-bottom: 8px; font-weight: 500;">
-              Pavimentos por Bloco *
-            </label>
-            <input type="number" id="quantidade_pavimentos_por_bloco" required min="1" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
-          <div>
-            <label style="display: block; margin-bottom: 8px; font-weight: 500;">
-              Apartamentos por Pavimento *
-            </label>
-            <input type="number" id="quantidade_apartamentos_por_pavimento" required min="1" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
-          </div>
-
-          <div>
-            <label style="display: block; margin-bottom: 8px; font-weight: 500;">
-              Existem Halls?
-            </label>
-            <select id="existem_halls" onchange="toggleHalls()" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
-              <option value="0">Não</option>
-              <option value="1">Sim</option>
-            </select>
-          </div>
-        </div>
-
-        <div id="divHalls" style="display: none; margin-bottom: 20px;">
-          <label style="display: block; margin-bottom: 8px; font-weight: 500;">
-            Halls por Pavimento
-          </label>
-          <input type="number" id="quantidade_halls_por_pavimento" min="0" value="1" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
-        </div>
-
         <div style="margin-bottom: 20px;">
           <label style="display: block; margin-bottom: 8px; font-weight: 500;">
             Observações
           </label>
-          <textarea id="observacoes" rows="3" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;" placeholder="Informações adicionais..."></textarea>
+          <textarea id="observacoes" rows="2" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;" placeholder="Informações adicionais..."></textarea>
         </div>
+
+        <hr style="margin: 24px 0; border: none; border-top: 2px solid #e2e8f0;">
+
+        <h3 style="margin-bottom: 16px;">Blocos do Empreendimento</h3>
+        <p style="color: #64748b; margin-bottom: 16px; font-size: 14px;">
+          Cada bloco pode ter configurações diferentes de pavimentos e apartamentos.
+        </p>
+
+        <div id="blocosContainer"></div>
+
+        <button type="button" class="btn-secondary" onclick="adicionarBloco()" style="width: 100%; margin-bottom: 20px;">
+          ➕ Adicionar Bloco
+        </button>
 
         <div style="display: flex; gap: 12px;">
           <button type="submit" class="btn-primary" style="flex: 1;">Salvar</button>
@@ -133,6 +101,7 @@
 
   <script>
     let empreendimentos = [];
+    let blocoCount = 0;
 
     // ==================== CARREGAR EMPREENDIMENTOS ====================
     async function carregarEmpreendimentos() {
@@ -145,71 +114,169 @@
       } catch (error) {
         console.error('Erro:', error);
         document.getElementById('tabelaEmpreendimentos').innerHTML = 
-          '<tr><td colspan="7" style="text-align:center; color: #ef4444;">Erro ao carregar empreendimentos</td></tr>';
+          '<tr><td colspan="4" style="text-align:center; color: #ef4444;">Erro ao carregar empreendimentos</td></tr>';
       }
     }
 
     // ==================== RENDERIZAR TABELA ====================
-    function renderizarTabela() {
+    async function renderizarTabela() {
       const tbody = document.getElementById('tabelaEmpreendimentos');
       
       if (empreendimentos.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 40px;">Nenhum empreendimento cadastrado</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 40px;">Nenhum empreendimento cadastrado</td></tr>';
         return;
       }
       
       tbody.innerHTML = '';
       
-      empreendimentos.forEach(emp => {
-        const totalUnidades = emp.quantidade_blocos * emp.quantidade_pavimentos_por_bloco * 
-          (emp.quantidade_apartamentos_por_pavimento + (emp.existem_halls ? emp.quantidade_halls_por_pavimento : 0));
+      for (const emp of empreendimentos) {
+        // Buscar blocos
+        const respBlocos = await fetch('/api/blocos/empreendimento/' + emp.id);
+        const blocos = await respBlocos.json();
+        
+        // Calcular total de unidades
+        let totalUnidades = 0;
+        blocos.forEach(b => {
+          totalUnidades += b.quantidade_pavimentos * 
+            (b.quantidade_apartamentos_por_pavimento + (b.existem_halls ? b.quantidade_halls_por_pavimento : 0));
+        });
         
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><strong>${emp.nome}</strong></td>
-          <td>${emp.quantidade_blocos}</td>
-          <td>${emp.quantidade_pavimentos_por_bloco}</td>
-          <td>${emp.quantidade_apartamentos_por_pavimento}</td>
-          <td>${emp.existem_halls ? 'Sim (' + emp.quantidade_halls_por_pavimento + ')' : 'Não'}</td>
+          <td>${blocos.length} bloco(s)</td>
           <td><strong>${totalUnidades}</strong></td>
           <td>
             <button class="btn-small" onclick="gerarUnidades(${emp.id})" title="Gerar unidades">🏗️</button>
             <button class="btn-small" onclick="verUnidades(${emp.id})" title="Ver unidades">👁️</button>
+            <button class="btn-small" onclick="verDetalhes(${emp.id})" title="Ver detalhes">📋</button>
             <button class="btn-small" onclick="deletarEmpreendimento(${emp.id})" title="Deletar">🗑️</button>
           </td>
         `;
         tbody.appendChild(tr);
-      });
+      }
     }
 
     // ==================== ABRIR/FECHAR MODAL ====================
     function abrirModal() {
       document.getElementById('modalEmpreendimento').style.display = 'block';
+      document.getElementById('blocosContainer').innerHTML = '';
+      blocoCount = 0;
+      adicionarBloco(); // Adiciona o primeiro bloco automaticamente
     }
 
     function fecharModal() {
       document.getElementById('modalEmpreendimento').style.display = 'none';
       document.getElementById('formEmpreendimento').reset();
+      document.getElementById('blocosContainer').innerHTML = '';
+      blocoCount = 0;
     }
 
-    function toggleHalls() {
-      const existem = document.getElementById('existem_halls').value === '1';
-      document.getElementById('divHalls').style.display = existem ? 'block' : 'none';
+    // ==================== ADICIONAR BLOCO ====================
+    function adicionarBloco() {
+      blocoCount++;
+      const container = document.getElementById('blocosContainer');
+      
+      const blocoDiv = document.createElement('div');
+      blocoDiv.id = 'bloco_' + blocoCount;
+      blocoDiv.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px; position: relative;';
+      
+      blocoDiv.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="margin: 0;">Bloco ${blocoCount}</h4>
+          <button type="button" onclick="removerBloco(${blocoCount})" style="background: #ef4444; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer;">
+            Remover
+          </button>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px;">Nome do Bloco *</label>
+            <input type="text" id="bloco_nome_${blocoCount}" required value="Bloco ${String.fromCharCode(64 + blocoCount)}" style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 4px;">
+          </div>
+          
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px;">Pavimentos *</label>
+            <input type="number" id="bloco_pav_${blocoCount}" required min="1" value="10" style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 4px;">
+          </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px;">Aptos/Pav *</label>
+            <input type="number" id="bloco_aptos_${blocoCount}" required min="1" value="4" style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 4px;">
+          </div>
+          
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px;">Tem Halls?</label>
+            <select id="bloco_halls_${blocoCount}" onchange="toggleHallsBloco(${blocoCount})" style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 4px;">
+              <option value="0">Não</option>
+              <option value="1">Sim</option>
+            </select>
+          </div>
+          
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px;">Halls/Pav</label>
+            <input type="number" id="bloco_qtd_halls_${blocoCount}" min="0" value="1" disabled style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 4px; background: #e2e8f0;">
+          </div>
+        </div>
+      `;
+      
+      container.appendChild(blocoDiv);
+    }
+
+    function removerBloco(id) {
+      const blocoDiv = document.getElementById('bloco_' + id);
+      if (blocoDiv) {
+        blocoDiv.remove();
+      }
+    }
+
+    function toggleHallsBloco(id) {
+      const temHalls = document.getElementById('bloco_halls_' + id).value === '1';
+      const inputQtd = document.getElementById('bloco_qtd_halls_' + id);
+      inputQtd.disabled = !temHalls;
+      if (!temHalls) {
+        inputQtd.value = 0;
+      } else {
+        inputQtd.value = 1;
+      }
     }
 
     // ==================== SALVAR EMPREENDIMENTO ====================
     async function salvarEmpreendimento(event) {
       event.preventDefault();
       
-      const dados = {
-        nome: document.getElementById('nome').value,
-        quantidade_blocos: parseInt(document.getElementById('quantidade_blocos').value),
-        quantidade_pavimentos_por_bloco: parseInt(document.getElementById('quantidade_pavimentos_por_bloco').value),
-        quantidade_apartamentos_por_pavimento: parseInt(document.getElementById('quantidade_apartamentos_por_pavimento').value),
-        existem_halls: document.getElementById('existem_halls').value === '1',
-        quantidade_halls_por_pavimento: parseInt(document.getElementById('quantidade_halls_por_pavimento').value) || 0,
-        observacoes: document.getElementById('observacoes').value
-      };
+      const nome = document.getElementById('nome').value;
+      const observacoes = document.getElementById('observacoes').value;
+      
+      // Coletar dados dos blocos
+      const blocos = [];
+      const container = document.getElementById('blocosContainer');
+      const blocosDivs = container.querySelectorAll('[id^="bloco_"]');
+      
+      blocosDivs.forEach(blocoDiv => {
+        const id = blocoDiv.id.replace('bloco_', '');
+        
+        const bloco = {
+          nome: document.getElementById('bloco_nome_' + id).value,
+          quantidade_pavimentos: parseInt(document.getElementById('bloco_pav_' + id).value),
+          quantidade_apartamentos_por_pavimento: parseInt(document.getElementById('bloco_aptos_' + id).value),
+          existem_halls: document.getElementById('bloco_halls_' + id).value === '1',
+          quantidade_halls_por_pavimento: parseInt(document.getElementById('bloco_qtd_halls_' + id).value) || 0
+        };
+        
+        blocos.push(bloco);
+      });
+      
+      if (blocos.length === 0) {
+        alert('Adicione pelo menos um bloco!');
+        return;
+      }
+      
+      const dados = { nome, observacoes, blocos };
+      
+      console.log('Enviando:', JSON.stringify(dados, null, 2));
       
       try {
         const response = await fetch('/api/empreendimentos', {
@@ -229,7 +296,7 @@
         }
       } catch (error) {
         console.error('Erro:', error);
-        alert('Erro ao salvar empreendimento');
+        alert('Erro ao salvar empreendimento: ' + error.message);
       }
     }
 
@@ -272,13 +339,40 @@
         
         let texto = 'Unidades cadastradas:\n\n';
         unidades.forEach(u => {
-          texto += `${u.bloco} - Pav ${u.pavimento} - ${u.numero_unidade} (${u.tipo})\n`;
+          texto += `${u.bloco_nome} - Pav ${u.pavimento} - ${u.numero_unidade} (${u.tipo})\n`;
         });
         
         alert(texto);
       } catch (error) {
         console.error('Erro:', error);
         alert('Erro ao carregar unidades');
+      }
+    }
+
+    // ==================== VER DETALHES ====================
+    async function verDetalhes(empId) {
+      try {
+        const resp = await fetch('/api/empreendimentos/' + empId);
+        const emp = await resp.json();
+        
+        let texto = `EMPREENDIMENTO: ${emp.nome}\n\n`;
+        texto += 'BLOCOS:\n';
+        
+        emp.blocos.forEach(b => {
+          texto += `\n${b.nome}:\n`;
+          texto += `  - Pavimentos: ${b.quantidade_pavimentos}\n`;
+          texto += `  - Aptos/Pav: ${b.quantidade_apartamentos_por_pavimento}\n`;
+          texto += `  - Halls: ${b.existem_halls ? 'Sim (' + b.quantidade_halls_por_pavimento + ')' : 'Não'}\n`;
+        });
+        
+        if (emp.observacoes) {
+          texto += `\nOBS: ${emp.observacoes}`;
+        }
+        
+        alert(texto);
+      } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao carregar detalhes');
       }
     }
 
