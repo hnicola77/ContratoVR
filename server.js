@@ -21,7 +21,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // ==================== BANCO DE DADOS ====================
 
-const dbPath = process.env.DATABASE_PATH || "./data/contratosvr.db";
+const dbPath = process.env.DATABASE_PATH || "./data";
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error("❌ Erro ao conectar no banco:", err);
