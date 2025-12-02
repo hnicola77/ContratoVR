@@ -100,19 +100,29 @@
   </div>
 
   <script>
+    console.log('🚀 empreendimentos.html carregado - VERSÃO COM LOGS');
+    
     let empreendimentos = [];
     let blocoCount = 0;
 
     // ==================== CARREGAR EMPREENDIMENTOS ====================
     async function carregarEmpreendimentos() {
+      console.log('📋 Carregando empreendimentos...');
+      
       try {
         const response = await fetch('/api/empreendimentos');
-        if (!response.ok) throw new Error('Erro ao carregar');
+        console.log('📥 Response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error('Erro ao carregar: ' + response.status);
+        }
         
         empreendimentos = await response.json();
+        console.log('✅ Empreendimentos carregados:', empreendimentos.length);
+        
         renderizarTabela();
       } catch (error) {
-        console.error('Erro:', error);
+        console.error('❌ Erro ao carregar:', error);
         document.getElementById('tabelaEmpreendimentos').innerHTML = 
           '<tr><td colspan="4" style="text-align:center; color: #ef4444;">Erro ao carregar empreendimentos</td></tr>';
       }
@@ -120,6 +130,7 @@
 
     // ==================== RENDERIZAR TABELA ====================
     async function renderizarTabela() {
+      console.log('🎨 Renderizando tabela...');
       const tbody = document.getElementById('tabelaEmpreendimentos');
       
       if (empreendimentos.length === 0) {
@@ -130,11 +141,9 @@
       tbody.innerHTML = '';
       
       for (const emp of empreendimentos) {
-        // Buscar blocos
         const respBlocos = await fetch('/api/blocos/empreendimento/' + emp.id);
         const blocos = await respBlocos.json();
         
-        // Calcular total de unidades
         let totalUnidades = 0;
         blocos.forEach(b => {
           totalUnidades += b.quantidade_pavimentos * 
@@ -155,17 +164,21 @@
         `;
         tbody.appendChild(tr);
       }
+      
+      console.log('✅ Tabela renderizada');
     }
 
     // ==================== ABRIR/FECHAR MODAL ====================
     function abrirModal() {
+      console.log('📂 Abrindo modal...');
       document.getElementById('modalEmpreendimento').style.display = 'block';
       document.getElementById('blocosContainer').innerHTML = '';
       blocoCount = 0;
-      adicionarBloco(); // Adiciona o primeiro bloco automaticamente
+      adicionarBloco();
     }
 
     function fecharModal() {
+      console.log('📁 Fechando modal...');
       document.getElementById('modalEmpreendimento').style.display = 'none';
       document.getElementById('formEmpreendimento').reset();
       document.getElementById('blocosContainer').innerHTML = '';
@@ -175,11 +188,13 @@
     // ==================== ADICIONAR BLOCO ====================
     function adicionarBloco() {
       blocoCount++;
+      console.log('➕ Adicionando bloco', blocoCount);
+      
       const container = document.getElementById('blocosContainer');
       
       const blocoDiv = document.createElement('div');
       blocoDiv.id = 'bloco_' + blocoCount;
-      blocoDiv.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px; position: relative;';
+      blocoDiv.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;';
       
       blocoDiv.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -201,7 +216,7 @@
           </div>
         </div>
         
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
           <div>
             <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px;">Aptos/Pav *</label>
             <input type="number" id="bloco_aptos_${blocoCount}" required min="1" value="4" style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 4px;">
@@ -226,36 +241,40 @@
     }
 
     function removerBloco(id) {
+      console.log('🗑️ Removendo bloco', id);
       const blocoDiv = document.getElementById('bloco_' + id);
-      if (blocoDiv) {
-        blocoDiv.remove();
-      }
+      if (blocoDiv) blocoDiv.remove();
     }
 
     function toggleHallsBloco(id) {
       const temHalls = document.getElementById('bloco_halls_' + id).value === '1';
       const inputQtd = document.getElementById('bloco_qtd_halls_' + id);
       inputQtd.disabled = !temHalls;
-      if (!temHalls) {
-        inputQtd.value = 0;
-      } else {
-        inputQtd.value = 1;
-      }
+      inputQtd.value = temHalls ? 1 : 0;
     }
 
     // ==================== SALVAR EMPREENDIMENTO ====================
     async function salvarEmpreendimento(event) {
       event.preventDefault();
       
+      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('💾 SALVANDO EMPREENDIMENTO');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
       const nome = document.getElementById('nome').value;
       const observacoes = document.getElementById('observacoes').value;
       
-      // Coletar dados dos blocos
+      console.log('📝 Nome:', nome);
+      console.log('📝 Obs:', observacoes || '(vazio)');
+      
+      // Coletar blocos
       const blocos = [];
       const container = document.getElementById('blocosContainer');
       const blocosDivs = container.querySelectorAll('[id^="bloco_"]');
       
-      blocosDivs.forEach(blocoDiv => {
+      console.log('📦 Blocos na tela:', blocosDivs.length);
+      
+      blocosDivs.forEach((blocoDiv, index) => {
         const id = blocoDiv.id.replace('bloco_', '');
         
         const bloco = {
@@ -266,17 +285,21 @@
           quantidade_halls_por_pavimento: parseInt(document.getElementById('bloco_qtd_halls_' + id).value) || 0
         };
         
+        console.log(`   Bloco ${index + 1}:`, bloco);
         blocos.push(bloco);
       });
       
       if (blocos.length === 0) {
+        console.error('❌ Nenhum bloco!');
         alert('Adicione pelo menos um bloco!');
         return;
       }
       
       const dados = { nome, observacoes, blocos };
       
-      console.log('Enviando:', JSON.stringify(dados, null, 2));
+      console.log('\n📤 Enviando...');
+      console.log('URL:', '/api/empreendimentos');
+      console.log('Dados:', JSON.stringify(dados, null, 2));
       
       try {
         const response = await fetch('/api/empreendimentos', {
@@ -285,124 +308,113 @@
           body: JSON.stringify(dados)
         });
         
+        console.log('📥 Status:', response.status);
+        
         const result = await response.json();
+        console.log('📦 Resposta:', result);
         
         if (response.ok) {
-          alert('Empreendimento criado com sucesso!');
+          console.log('✅✅✅ SUCESSO! ID:', result.id);
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+          
+          alert('✅ Empreendimento criado! ID: ' + result.id);
           fecharModal();
           carregarEmpreendimentos();
         } else {
-          alert('Erro: ' + result.error);
+          console.error('❌ ERRO:', result.error);
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+          alert('❌ Erro: ' + result.error);
         }
       } catch (error) {
-        console.error('Erro:', error);
-        alert('Erro ao salvar empreendimento: ' + error.message);
+        console.error('❌ EXCEÇÃO:', error);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        alert('❌ Erro: ' + error.message);
       }
     }
 
-    // ==================== GERAR UNIDADES ====================
+    // Outras funções...
     async function gerarUnidades(empId) {
-      if (!confirm('Deseja gerar automaticamente todas as unidades deste empreendimento?')) {
-        return;
-      }
-      
+      if (!confirm('Gerar unidades?')) return;
+      console.log('🏗️ Gerando...', empId);
       try {
         const response = await fetch('/api/unidades/criar-automatico', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ empreendimento_id: empId })
         });
-        
         const result = await response.json();
-        
         if (response.ok) {
-          alert(result.message + '\nTotal: ' + result.total + '\nCriadas: ' + result.inserted + '\nDuplicadas: ' + result.duplicated);
+          console.log('✅ Geradas:', result);
+          alert(result.message);
         } else {
+          console.error('❌ Erro:', result.error);
           alert('Erro: ' + result.error);
         }
       } catch (error) {
-        console.error('Erro:', error);
+        console.error('❌ Exceção:', error);
         alert('Erro ao gerar unidades');
       }
     }
 
-    // ==================== VER UNIDADES ====================
     async function verUnidades(empId) {
+      console.log('👁️ Ver unidades:', empId);
       try {
         const response = await fetch('/api/unidades/empreendimento/' + empId);
         const unidades = await response.json();
-        
         if (unidades.length === 0) {
-          alert('Nenhuma unidade cadastrada ainda. Clique em 🏗️ para gerar automaticamente.');
+          alert('Nenhuma unidade. Clique em 🏗️');
           return;
         }
-        
-        let texto = 'Unidades cadastradas:\n\n';
+        let texto = 'Unidades:\n\n';
         unidades.forEach(u => {
-          texto += `${u.bloco_nome} - Pav ${u.pavimento} - ${u.numero_unidade} (${u.tipo})\n`;
+          texto += `${u.bloco_nome} - Pav ${u.pavimento} - ${u.numero_unidade}\n`;
         });
-        
         alert(texto);
       } catch (error) {
-        console.error('Erro:', error);
-        alert('Erro ao carregar unidades');
+        console.error('❌ Erro:', error);
+        alert('Erro');
       }
     }
 
-    // ==================== VER DETALHES ====================
     async function verDetalhes(empId) {
+      console.log('📋 Detalhes:', empId);
       try {
         const resp = await fetch('/api/empreendimentos/' + empId);
         const emp = await resp.json();
-        
-        let texto = `EMPREENDIMENTO: ${emp.nome}\n\n`;
-        texto += 'BLOCOS:\n';
-        
+        let texto = `${emp.nome}\n\nBLOCOS:\n`;
         emp.blocos.forEach(b => {
-          texto += `\n${b.nome}:\n`;
-          texto += `  - Pavimentos: ${b.quantidade_pavimentos}\n`;
-          texto += `  - Aptos/Pav: ${b.quantidade_apartamentos_por_pavimento}\n`;
-          texto += `  - Halls: ${b.existem_halls ? 'Sim (' + b.quantidade_halls_por_pavimento + ')' : 'Não'}\n`;
+          texto += `\n${b.nome}: ${b.quantidade_pavimentos} pav, ${b.quantidade_apartamentos_por_pavimento} aptos\n`;
         });
-        
-        if (emp.observacoes) {
-          texto += `\nOBS: ${emp.observacoes}`;
-        }
-        
         alert(texto);
       } catch (error) {
-        console.error('Erro:', error);
-        alert('Erro ao carregar detalhes');
+        console.error('❌ Erro:', error);
+        alert('Erro');
       }
     }
 
-    // ==================== DELETAR ====================
     async function deletarEmpreendimento(id) {
-      if (!confirm('Deseja realmente deletar este empreendimento?')) {
-        return;
-      }
-      
+      if (!confirm('Deletar?')) return;
+      console.log('🗑️ Deletando:', id);
       try {
-        const response = await fetch('/api/empreendimentos/' + id, {
-          method: 'DELETE'
-        });
-        
+        const response = await fetch('/api/empreendimentos/' + id, { method: 'DELETE' });
         const result = await response.json();
-        
         if (response.ok) {
-          alert('Empreendimento deletado com sucesso!');
+          console.log('✅ Deletado');
+          alert('Deletado!');
           carregarEmpreendimentos();
         } else {
+          console.error('❌ Erro:', result.error);
           alert('Erro: ' + result.error);
         }
       } catch (error) {
-        console.error('Erro:', error);
-        alert('Erro ao deletar empreendimento');
+        console.error('❌ Exceção:', error);
+        alert('Erro');
       }
     }
 
     // ==================== INICIALIZAR ====================
     document.addEventListener('DOMContentLoaded', () => {
+      console.log('✅ DOM pronto, carregando...');
       carregarEmpreendimentos();
     });
   </script>
