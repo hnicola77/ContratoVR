@@ -13,7 +13,7 @@
   <a href="/distribuicao.html">Distribuição</a>
   <a href="/execucao.html">Execução</a>
   <div style="margin-left: auto;">
-    <span style="margin-right: 16px; color: #64748b;">🏗️ ContratosVR</span>
+    <span style="margin-right: 16px; color: #64748b;">🏗️ ContratosVR v4.0</span>
   </div>
 </div>
 
@@ -21,7 +21,7 @@
   
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
     <h1 style="margin: 0;">🏢 Empreendimentos</h1>
-    <button class="btn-primary" onclick="abrirModal()">➕ Novo Empreendimento</button>
+    <button class="btn-primary" onclick="abrirModalNovo()">➕ Novo Empreendimento</button>
   </div>
 
   <div class="table-container">
@@ -42,17 +42,18 @@
 
 </div>
 
-<!-- MODAL -->
+<!-- MODAL CADASTRO/EDIÇÃO -->
 <div id="modalEmpreendimento" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
   <div style="background: white; max-width: 700px; margin: 50px auto; border-radius: 16px; padding: 32px;">
     
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-      <h2 style="margin: 0;">Novo Empreendimento</h2>
+      <h2 style="margin: 0;" id="modalTitulo">Novo Empreendimento</h2>
       <button onclick="fecharModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">×</button>
     </div>
 
-    <!-- IMPORTANTE: onsubmit no form! -->
     <form onsubmit="salvarEmpreendimento(event); return false;">
+      
+      <input type="hidden" id="empreendimento_id">
       
       <div style="margin-bottom: 20px;">
         <label style="display: block; margin-bottom: 8px; font-weight: 500;">Nome do Empreendimento *</label>
@@ -75,8 +76,7 @@
       </button>
 
       <div style="display: flex; gap: 12px;">
-        <!-- IMPORTANTE: type="submit"! -->
-        <button type="submit" class="btn-primary" style="flex: 1;">💾 SALVAR</button>
+        <button type="submit" class="btn-primary" style="flex: 1;">💾 Salvar</button>
         <button type="button" onclick="fecharModal()" class="btn-secondary" style="flex: 1;">Cancelar</button>
       </div>
 
@@ -85,15 +85,97 @@
   </div>
 </div>
 
+<!-- MODAL VISUALIZAÇÃO DE UNIDADES -->
+<div id="modalUnidades" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+  <div style="background: white; max-width: 1200px; margin: 50px auto; border-radius: 16px; padding: 32px;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+      <div>
+        <h2 style="margin: 0;" id="unidadesTitulo">Unidades</h2>
+        <p style="margin: 4px 0 0 0; color: #64748b;" id="unidadesSubtitulo"></p>
+      </div>
+      <button onclick="fecharModalUnidades()" style="background: none; border: none; font-size: 24px; cursor: pointer;">×</button>
+    </div>
+
+    <!-- Filtros -->
+    <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 200px;">
+        <input type="text" id="buscaUnidade" placeholder="🔍 Buscar unidade..." style="width: 100%; padding: 10px; border: 2px solid #e2e8f0; border-radius: 8px;" onkeyup="filtrarUnidades()">
+      </div>
+      <div style="min-width: 150px;">
+        <select id="filtroBloco" style="width: 100%; padding: 10px; border: 2px solid #e2e8f0; border-radius: 8px;" onchange="filtrarUnidades()">
+          <option value="">Todos os blocos</option>
+        </select>
+      </div>
+      <div style="min-width: 150px;">
+        <select id="filtroTipo" style="width: 100%; padding: 10px; border: 2px solid #e2e8f0; border-radius: 8px;" onchange="filtrarUnidades()">
+          <option value="">Todos os tipos</option>
+          <option value="apartamento">Apartamentos</option>
+          <option value="hall">Halls</option>
+        </select>
+      </div>
+      <button onclick="exportarUnidades()" class="btn-secondary">📊 Exportar Excel</button>
+    </div>
+
+    <!-- Estatísticas -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px;">
+      <div style="background: #f0f9ff; padding: 16px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #0369a1;" id="statTotal">0</div>
+        <div style="font-size: 12px; color: #64748b;">Total</div>
+      </div>
+      <div style="background: #f0fdf4; padding: 16px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #16a34a;" id="statAptos">0</div>
+        <div style="font-size: 12px; color: #64748b;">Apartamentos</div>
+      </div>
+      <div style="background: #fef3c7; padding: 16px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #ca8a04;" id="statHalls">0</div>
+        <div style="font-size: 12px; color: #64748b;">Halls</div>
+      </div>
+      <div style="background: #f3e8ff; padding: 16px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #9333ea;" id="statBlocos">0</div>
+        <div style="font-size: 12px; color: #64748b;">Blocos</div>
+      </div>
+    </div>
+
+    <!-- Tabela de Unidades -->
+    <div class="table-container" style="max-height: 500px; overflow-y: auto;">
+      <table>
+        <thead style="position: sticky; top: 0; background: white; z-index: 10;">
+          <tr>
+            <th>Bloco</th>
+            <th>Pavimento</th>
+            <th>Unidade</th>
+            <th>Tipo</th>
+            <th>Tipologia</th>
+            <th>Área (m²)</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaUnidades">
+          <tr><td colspan="7" style="text-align: center; padding: 40px;">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top: 20px; text-align: right;">
+      <button onclick="fecharModalUnidades()" class="btn-secondary">Fechar</button>
+    </div>
+
+  </div>
+</div>
+
 <script>
-console.log('🚀 EMPREENDIMENTOS.HTML CARREGADO - VERSÃO SIMPLIFICADA');
+console.log('🚀 ContratosVR v4.0 - EDIÇÃO E VISUALIZAÇÃO AVANÇADA');
 
 let empreendimentos = [];
+let unidadesCache = [];
 let blocoCount = 0;
+let modoEdicao = false;
+let empreendimentoAtualId = null;
 
-// CARREGAR
+// ==================== CARREGAR ====================
 async function carregarEmpreendimentos() {
-  console.log('📋 Carregando...');
+  console.log('📋 Carregando empreendimentos...');
   try {
     const response = await fetch('/api/empreendimentos');
     empreendimentos = await response.json();
@@ -106,13 +188,12 @@ async function carregarEmpreendimentos() {
   }
 }
 
-// RENDERIZAR
 async function renderizarTabela() {
-  console.log('🎨 Renderizando...');
+  console.log('🎨 Renderizando tabela...');
   const tbody = document.getElementById('tabelaEmpreendimentos');
   
   if (empreendimentos.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 40px;">Nenhum empreendimento</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 40px;">Nenhum empreendimento cadastrado</td></tr>';
     return;
   }
   
@@ -122,56 +203,135 @@ async function renderizarTabela() {
     const respBlocos = await fetch('/api/blocos/empreendimento/' + emp.id);
     const blocos = await respBlocos.json();
     
-    let totalUnidades = 0;
-    blocos.forEach(b => {
-      totalUnidades += b.quantidade_pavimentos * 
-        (b.quantidade_apartamentos_por_pavimento + (b.existem_halls ? b.quantidade_halls_por_pavimento : 0));
-    });
+    const respUnidades = await fetch('/api/unidades/empreendimento/' + emp.id);
+    const unidades = await respUnidades.json();
     
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><strong>${emp.nome}</strong></td>
       <td>${blocos.length} bloco(s)</td>
-      <td><strong>${totalUnidades}</strong></td>
+      <td><strong>${unidades.length}</strong></td>
       <td>
-        <button class="btn-small" onclick="gerarUnidades(${emp.id})">🏗️</button>
-        <button class="btn-small" onclick="verUnidades(${emp.id})">👁️</button>
-        <button class="btn-small" onclick="deletarEmpreendimento(${emp.id})">🗑️</button>
+        <button class="btn-small" onclick="editarEmpreendimento(${emp.id})" title="Editar">✏️</button>
+        <button class="btn-small" onclick="gerarUnidades(${emp.id})" title="Gerar unidades">🏗️</button>
+        <button class="btn-small" onclick="verUnidadesCompleto(${emp.id})" title="Ver unidades">👁️</button>
+        <button class="btn-small" onclick="deletarEmpreendimento(${emp.id})" title="Deletar">🗑️</button>
       </td>
     `;
     tbody.appendChild(tr);
   }
   
-  console.log('✅ Tabela OK');
+  console.log('✅ Tabela renderizada');
 }
 
-// MODAL
-function abrirModal() {
-  console.log('📂 Abrindo modal...');
-  document.getElementById('modalEmpreendimento').style.display = 'block';
+// ==================== MODAL NOVO ====================
+function abrirModalNovo() {
+  console.log('📂 Abrindo modal NOVO...');
+  modoEdicao = false;
+  empreendimentoAtualId = null;
+  document.getElementById('modalTitulo').textContent = 'Novo Empreendimento';
+  document.getElementById('empreendimento_id').value = '';
+  document.getElementById('nome').value = '';
+  document.getElementById('observacoes').value = '';
   document.getElementById('blocosContainer').innerHTML = '';
   blocoCount = 0;
   adicionarBloco();
+  document.getElementById('modalEmpreendimento').style.display = 'block';
+}
+
+// ==================== EDITAR EMPREENDIMENTO ====================
+async function editarEmpreendimento(id) {
+  console.log('✏️ Editando empreendimento:', id);
+  modoEdicao = true;
+  empreendimentoAtualId = id;
+  
+  try {
+    const response = await fetch('/api/empreendimentos/' + id);
+    const emp = await response.json();
+    
+    document.getElementById('modalTitulo').textContent = 'Editar Empreendimento';
+    document.getElementById('empreendimento_id').value = emp.id;
+    document.getElementById('nome').value = emp.nome;
+    document.getElementById('observacoes').value = emp.observacoes || '';
+    
+    // Carregar blocos
+    document.getElementById('blocosContainer').innerHTML = '';
+    blocoCount = 0;
+    
+    if (emp.blocos && emp.blocos.length > 0) {
+      emp.blocos.forEach(bloco => {
+        blocoCount++;
+        const container = document.getElementById('blocosContainer');
+        const blocoDiv = document.createElement('div');
+        blocoDiv.id = 'bloco_' + blocoCount;
+        blocoDiv.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;';
+        
+        blocoDiv.innerHTML = `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+            <h4 style="margin: 0;">Bloco ${blocoCount}</h4>
+            <button type="button" onclick="removerBloco(${blocoCount})" style="background: #ef4444; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer;">Remover</button>
+          </div>
+          
+          <input type="hidden" id="bloco_id_${blocoCount}" value="${bloco.id || ''}">
+          
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div>
+              <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px;">Nome *</label>
+              <input type="text" id="bloco_nome_${blocoCount}" required value="${bloco.nome}" style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 4px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px;">Pavimentos *</label>
+              <input type="number" id="bloco_pav_${blocoCount}" required min="1" value="${bloco.quantidade_pavimentos}" style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 4px;">
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px;">Aptos/Pav *</label>
+              <input type="number" id="bloco_aptos_${blocoCount}" required min="1" value="${bloco.quantidade_apartamentos_por_pavimento}" style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 4px;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px;">Tem Halls?</label>
+              <select id="bloco_halls_${blocoCount}" onchange="toggleHalls(${blocoCount})" style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 4px;">
+                <option value="0" ${!bloco.existem_halls ? 'selected' : ''}>Não</option>
+                <option value="1" ${bloco.existem_halls ? 'selected' : ''}>Sim</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px;">Halls/Pav</label>
+              <input type="number" id="bloco_qtd_halls_${blocoCount}" min="0" value="${bloco.quantidade_halls_por_pavimento || 0}" ${!bloco.existem_halls ? 'disabled' : ''} style="width: 100%; padding: 8px; border: 2px solid #e2e8f0; border-radius: 4px; ${!bloco.existem_halls ? 'background: #e2e8f0;' : ''}">
+            </div>
+          </div>
+        `;
+        
+        container.appendChild(blocoDiv);
+      });
+    } else {
+      adicionarBloco();
+    }
+    
+    document.getElementById('modalEmpreendimento').style.display = 'block';
+  } catch (error) {
+    console.error('❌ Erro ao carregar empreendimento:', error);
+    alert('Erro ao carregar empreendimento para edição');
+  }
 }
 
 function fecharModal() {
   console.log('📁 Fechando modal...');
   document.getElementById('modalEmpreendimento').style.display = 'none';
-  document.getElementById('nome').value = '';
-  document.getElementById('observacoes').value = '';
-  document.getElementById('blocosContainer').innerHTML = '';
-  blocoCount = 0;
+  modoEdicao = false;
+  empreendimentoAtualId = null;
 }
 
-// ADICIONAR BLOCO
+// ==================== ADICIONAR BLOCO ====================
 function adicionarBloco() {
   blocoCount++;
   console.log('➕ Adicionando bloco', blocoCount);
   
   const container = document.getElementById('blocosContainer');
-  
   if (!container) {
-    console.error('❌ Container de blocos não encontrado!');
+    console.error('❌ Container não encontrado!');
     return;
   }
   
@@ -184,6 +344,8 @@ function adicionarBloco() {
       <h4 style="margin: 0;">Bloco ${blocoCount}</h4>
       <button type="button" onclick="removerBloco(${blocoCount})" style="background: #ef4444; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer;">Remover</button>
     </div>
+    
+    <input type="hidden" id="bloco_id_${blocoCount}" value="">
     
     <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 12px;">
       <div>
@@ -216,11 +378,11 @@ function adicionarBloco() {
   `;
   
   container.appendChild(blocoDiv);
-  console.log('✅ Bloco', blocoCount, 'adicionado. Total no DOM:', container.children.length);
+  console.log('✅ Bloco adicionado. Total:', container.children.length);
 }
 
 function removerBloco(id) {
-  console.log('🗑️ Removendo', id);
+  console.log('🗑️ Removendo bloco', id);
   const el = document.getElementById('bloco_' + id);
   if (el) el.remove();
 }
@@ -230,42 +392,45 @@ function toggleHalls(id) {
   const input = document.getElementById('bloco_qtd_halls_' + id);
   input.disabled = !temHalls;
   input.value = temHalls ? 1 : 0;
+  if (temHalls) {
+    input.style.background = 'white';
+  } else {
+    input.style.background = '#e2e8f0';
+  }
 }
 
-// ========== SALVAR ==========
+// ==================== SALVAR ====================
 async function salvarEmpreendimento(event) {
   event.preventDefault();
   
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('💾 SALVANDO EMPREENDIMENTO');
+  console.log(modoEdicao ? '✏️ EDITANDO EMPREENDIMENTO' : '💾 SALVANDO EMPREENDIMENTO');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
+  const id = document.getElementById('empreendimento_id').value;
   const nome = document.getElementById('nome').value;
   const observacoes = document.getElementById('observacoes').value;
   
-  console.log('📝 Nome:', nome);
-  console.log('📝 Obs:', observacoes || '(vazio)');
+  console.log('ID:', id || '(novo)');
+  console.log('Nome:', nome);
   
   // Coletar blocos
   const blocos = [];
   const container = document.getElementById('blocosContainer');
   const blocosDivs = container.querySelectorAll('[id^="bloco_"]');
   
-  console.log('📦 Blocos:', blocosDivs.length);
-  
   blocosDivs.forEach((blocoDiv, index) => {
-    const id = blocoDiv.id.replace('bloco_', '');
+    const blocoId = blocoDiv.id.replace('bloco_', '');
     
-    // Verificar se todos os campos existem
-    const campoNome = document.getElementById('bloco_nome_' + id);
-    const campoPav = document.getElementById('bloco_pav_' + id);
-    const campoAptos = document.getElementById('bloco_aptos_' + id);
-    const campoHalls = document.getElementById('bloco_halls_' + id);
-    const campoQtdHalls = document.getElementById('bloco_qtd_halls_' + id);
+    const campoNome = document.getElementById('bloco_nome_' + blocoId);
+    const campoPav = document.getElementById('bloco_pav_' + blocoId);
+    const campoAptos = document.getElementById('bloco_aptos_' + blocoId);
+    const campoHalls = document.getElementById('bloco_halls_' + blocoId);
+    const campoQtdHalls = document.getElementById('bloco_qtd_halls_' + blocoId);
     
     if (!campoNome || !campoPav || !campoAptos || !campoHalls || !campoQtdHalls) {
-      console.error(`❌ Campos do bloco ${id} não encontrados!`);
-      return; // Pula este bloco
+      console.error(`❌ Campos do bloco ${blocoId} não encontrados!`);
+      return;
     }
     
     const bloco = {
@@ -276,57 +441,218 @@ async function salvarEmpreendimento(event) {
       quantidade_halls_por_pavimento: parseInt(campoQtdHalls.value) || 0
     };
     
-    console.log(`   Bloco ${index + 1}:`, bloco);
+    console.log(`   Bloco ${index + 1}:`, bloco.nome);
     blocos.push(bloco);
   });
   
   if (blocos.length === 0) {
-    console.error('❌ Nenhum bloco válido encontrado!');
-    console.log('Blocos na tela:', blocosDivs.length);
-    console.log('Blocos coletados:', blocos.length);
-    alert('❌ Erro: Nenhum bloco válido! Verifique se preencheu todos os campos.');
+    console.error('❌ Nenhum bloco válido!');
+    alert('❌ Adicione pelo menos um bloco!');
     return;
   }
   
   const dados = { nome, observacoes, blocos };
   
-  console.log('\n📤 Enviando POST /api/empreendimentos');
-  console.log('Dados:', JSON.stringify(dados, null, 2));
-  
   try {
-    const response = await fetch('/api/empreendimentos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dados)
-    });
+    let response;
     
-    console.log('📥 Status:', response.status);
+    if (modoEdicao && id) {
+      // EDITAR
+      console.log('📤 PUT /api/empreendimentos/' + id);
+      response = await fetch('/api/empreendimentos/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dados)
+      });
+    } else {
+      // CRIAR
+      console.log('📤 POST /api/empreendimentos');
+      response = await fetch('/api/empreendimentos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dados)
+      });
+    }
     
     const result = await response.json();
-    console.log('📦 Resposta:', result);
     
     if (response.ok) {
-      console.log('✅✅✅ SUCESSO! ID:', result.id);
+      console.log('✅✅✅ SUCESSO!');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       
-      alert('✅ Empreendimento criado! ID: ' + result.id);
+      alert(modoEdicao ? '✅ Empreendimento atualizado!' : '✅ Empreendimento criado! ID: ' + result.id);
       fecharModal();
       carregarEmpreendimentos();
     } else {
       console.error('❌ ERRO:', result.error);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       alert('❌ Erro: ' + result.error);
     }
   } catch (error) {
     console.error('❌ EXCEÇÃO:', error);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     alert('❌ Erro: ' + error.message);
   }
 }
 
-// OUTRAS FUNÇÕES
+// ==================== VER UNIDADES COMPLETO ====================
+async function verUnidadesCompleto(empId) {
+  console.log('👁️ Visualização completa de unidades:', empId);
+  
+  try {
+    // Buscar empreendimento
+    const respEmp = await fetch('/api/empreendimentos/' + empId);
+    const emp = await respEmp.json();
+    
+    // Buscar unidades
+    const respUnidades = await fetch('/api/unidades/empreendimento/' + empId);
+    const unidades = await respUnidades.json();
+    
+    unidadesCache = unidades;
+    
+    document.getElementById('unidadesTitulo').textContent = emp.nome;
+    document.getElementById('unidadesSubtitulo').textContent = `${unidades.length} unidades cadastradas`;
+    
+    // Preencher filtro de blocos
+    const blocos = [...new Set(unidades.map(u => u.bloco_nome))];
+    const selectBloco = document.getElementById('filtroBloco');
+    selectBloco.innerHTML = '<option value="">Todos os blocos</option>';
+    blocos.forEach(bloco => {
+      selectBloco.innerHTML += `<option value="${bloco}">${bloco}</option>`;
+    });
+    
+    // Atualizar estatísticas
+    atualizarEstatisticas(unidades);
+    
+    // Renderizar tabela
+    renderizarTabelaUnidades(unidades);
+    
+    document.getElementById('modalUnidades').style.display = 'block';
+  } catch (error) {
+    console.error('❌ Erro:', error);
+    alert('Erro ao carregar unidades');
+  }
+}
+
+function atualizarEstatisticas(unidades) {
+  const total = unidades.length;
+  const aptos = unidades.filter(u => u.tipo === 'apartamento').length;
+  const halls = unidades.filter(u => u.tipo === 'hall').length;
+  const blocos = [...new Set(unidades.map(u => u.bloco_nome))].length;
+  
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statAptos').textContent = aptos;
+  document.getElementById('statHalls').textContent = halls;
+  document.getElementById('statBlocos').textContent = blocos;
+}
+
+function renderizarTabelaUnidades(unidades) {
+  const tbody = document.getElementById('tabelaUnidades');
+  
+  if (unidades.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 40px;">Nenhuma unidade. Clique em 🏗️ para gerar.</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = '';
+  
+  unidades.forEach(u => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${u.bloco_nome}</strong></td>
+      <td>${u.pavimento}</td>
+      <td><strong>${u.numero_unidade}</strong></td>
+      <td><span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; ${u.tipo === 'apartamento' ? 'background: #dcfce7; color: #166534;' : 'background: #fef3c7; color: #854d0e;'}">${u.tipo}</span></td>
+      <td>${u.tipologia || '-'}</td>
+      <td>${u.area_total ? u.area_total + ' m²' : '-'}</td>
+      <td>
+        <button class="btn-small" onclick="editarUnidade(${u.id})" title="Editar">✏️</button>
+        <button class="btn-small" onclick="deletarUnidade(${u.id})" title="Deletar">🗑️</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function filtrarUnidades() {
+  const busca = document.getElementById('buscaUnidade').value.toLowerCase();
+  const blocoFiltro = document.getElementById('filtroBloco').value;
+  const tipoFiltro = document.getElementById('filtroTipo').value;
+  
+  let filtradas = unidadesCache;
+  
+  if (busca) {
+    filtradas = filtradas.filter(u => 
+      u.numero_unidade.toLowerCase().includes(busca) ||
+      u.bloco_nome.toLowerCase().includes(busca)
+    );
+  }
+  
+  if (blocoFiltro) {
+    filtradas = filtradas.filter(u => u.bloco_nome === blocoFiltro);
+  }
+  
+  if (tipoFiltro) {
+    filtradas = filtradas.filter(u => u.tipo === tipoFiltro);
+  }
+  
+  renderizarTabelaUnidades(filtradas);
+  atualizarEstatisticas(filtradas);
+}
+
+function fecharModalUnidades() {
+  document.getElementById('modalUnidades').style.display = 'none';
+  document.getElementById('buscaUnidade').value = '';
+  document.getElementById('filtroBloco').value = '';
+  document.getElementById('filtroTipo').value = '';
+}
+
+// ==================== EXPORTAR EXCEL ====================
+function exportarUnidades() {
+  console.log('📊 Exportando unidades para Excel...');
+  
+  let csv = 'Bloco,Pavimento,Unidade,Tipo,Tipologia,Área (m²)\n';
+  
+  unidadesCache.forEach(u => {
+    csv += `${u.bloco_nome},${u.pavimento},${u.numero_unidade},${u.tipo},${u.tipologia || ''},${u.area_total || ''}\n`;
+  });
+  
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'unidades_' + new Date().toISOString().split('T')[0] + '.csv';
+  link.click();
+  
+  console.log('✅ Exportado!');
+}
+
+// ==================== EDITAR/DELETAR UNIDADE ====================
+async function editarUnidade(id) {
+  const tipologia = prompt('Digite a tipologia (ex: 2 Quartos, 3 Quartos):');
+  const area = prompt('Digite a área total em m²:');
+  
+  if (tipologia === null && area === null) return;
+  
+  try {
+    // TODO: Implementar rota PUT /api/unidades/:id no backend
+    alert('Funcionalidade em desenvolvimento. Por enquanto, delete e gere novamente.');
+  } catch (error) {
+    alert('Erro ao editar unidade');
+  }
+}
+
+async function deletarUnidade(id) {
+  if (!confirm('Deletar esta unidade?')) return;
+  
+  try {
+    // TODO: Implementar rota DELETE /api/unidades/:id no backend
+    alert('Funcionalidade em desenvolvimento.');
+  } catch (error) {
+    alert('Erro ao deletar unidade');
+  }
+}
+
+// ==================== OUTRAS FUNÇÕES ====================
 async function gerarUnidades(empId) {
-  if (!confirm('Gerar unidades?')) return;
+  if (!confirm('Gerar unidades automaticamente?')) return;
   try {
     const response = await fetch('/api/unidades/criar-automatico', {
       method: 'POST',
@@ -335,52 +661,35 @@ async function gerarUnidades(empId) {
     });
     const result = await response.json();
     if (response.ok) {
-      alert(result.message);
+      alert('✅ ' + result.message);
+      carregarEmpreendimentos();
     } else {
-      alert('Erro: ' + result.error);
+      alert('❌ Erro: ' + result.error);
     }
   } catch (error) {
-    alert('Erro');
-  }
-}
-
-async function verUnidades(empId) {
-  try {
-    const response = await fetch('/api/unidades/empreendimento/' + empId);
-    const unidades = await response.json();
-    if (unidades.length === 0) {
-      alert('Nenhuma unidade. Clique em 🏗️');
-      return;
-    }
-    let texto = 'Unidades:\n\n';
-    unidades.forEach(u => {
-      texto += `${u.bloco_nome} - Pav ${u.pavimento} - ${u.numero_unidade}\n`;
-    });
-    alert(texto);
-  } catch (error) {
-    alert('Erro');
+    alert('❌ Erro');
   }
 }
 
 async function deletarEmpreendimento(id) {
-  if (!confirm('Deletar?')) return;
+  if (!confirm('Deletar este empreendimento e TODAS as suas unidades?')) return;
   try {
     const response = await fetch('/api/empreendimentos/' + id, { method: 'DELETE' });
     if (response.ok) {
-      alert('Deletado!');
+      alert('✅ Deletado!');
       carregarEmpreendimentos();
     } else {
       const result = await response.json();
-      alert('Erro: ' + result.error);
+      alert('❌ Erro: ' + result.error);
     }
   } catch (error) {
-    alert('Erro');
+    alert('❌ Erro');
   }
 }
 
-// INICIALIZAR
+// ==================== INICIALIZAR ====================
 window.addEventListener('DOMContentLoaded', () => {
-  console.log('✅ DOM pronto');
+  console.log('✅ DOM pronto - v4.0');
   carregarEmpreendimentos();
 });
 </script>
