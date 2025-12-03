@@ -429,13 +429,19 @@ app.post("/api/empreendimentos", (req, res) => {
 });
 
 // ATUALIZAR EMPREENDIMENTO
+// ATUALIZAR EMPREENDIMENTO (COM BLOCOS)
 app.put("/api/empreendimentos/:id", (req, res) => {
   const { id } = req.params;
-  const { nome, observacoes } = req.body;
+  const { nome, observacoes, blocos } = req.body;
   
-  console.log('   📝 Atualizando:', id);
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('📝 PUT /api/empreendimentos/' + id);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('   Nome:', nome);
+  console.log('   Blocos recebidos:', blocos ? blocos.length : 0);
   
-  const sql = `
+  // Atualizar empreendimento
+  const sqlEmp = `
     UPDATE empreendimentos SET
       nome = ?,
       observacoes = ?,
@@ -443,17 +449,135 @@ app.put("/api/empreendimentos/:id", (req, res) => {
     WHERE id = ?
   `;
   
-  db.run(sql, [nome, observacoes, id], function(err) {
+  db.run(sqlEmp, [nome, observacoes, id], function(err) {
     if (err) {
-      console.error("   ❌ Erro SQL:", err.message);
+      console.error("❌ Erro ao atualizar empreendimento:", err.message);
       return res.status(500).json({ error: "Erro ao atualizar: " + err.message });
     }
+    
     if (this.changes === 0) {
-      console.log('   ❌ Não encontrado');
-      return res.status(404).json({ error: "Não encontrado" });
+      console.log('❌ Empreendimento não encontrado');
+      return res.status(404).json({ error: "Empreendimento não encontrado" });
     }
-    console.log('   ✅ Atualizado');
-    res.json({ message: "Atualizado com sucesso" });
+    
+    console.log('✅ Empreendimento atualizado');
+    
+    // Se não enviou blocos, retornar
+    if (!blocos || !Array.isArray(blocos)) {
+      console.log('⚠️  Sem blocos para atualizar');
+      return res.json({ message: "Empreendimento atualizado com sucesso" });
+    }
+    
+    // ATUALIZAR BLOCOS
+    console.log('\n📝 Atualizando blocos...');
+    
+    // 1. Deletar blocos que não vieram na requisição
+    db.all("SELECT id FROM blocos WHERE empreendimento_id = ?", [id], (err2, blocosExistentes) => {
+      if (err2) {
+        console.error("❌ Erro ao buscar blocos:", err2.message);
+        return res.status(500).json({ error: "Erro ao buscar blocos: " + err2.message });
+      }
+      
+      const idsRecebidos = blocos.filter(b => b.id).map(b => b.id);
+      const idsParaDeletar = blocosExistentes.filter(b => !idsRecebidos.includes(b.id)).map(b => b.id);
+      
+      console.log('   IDs recebidos:', idsRecebidos);
+      console.log('   IDs para deletar:', idsParaDeletar);
+      
+      // Deletar blocos removidos
+      if (idsParaDeletar.length > 0) {
+        const placeholders = idsParaDeletar.map(() => '?').join(',');
+        db.run(`DELETE FROM blocos WHERE id IN (${placeholders})`, idsParaDeletar, (err3) => {
+          if (err3) console.error("⚠️  Erro ao deletar blocos:", err3.message);
+          else console.log(`✅ ${idsParaDeletar.length} blocos deletados`);
+        });
+      }
+      
+      // 2. Inserir ou atualizar blocos
+      let processados = 0;
+      let erros = [];
+      
+      blocos.forEach((bloco, index) => {
+        if (bloco.id) {
+          // ATUALIZAR bloco existente
+          const sqlUpdate = `
+            UPDATE blocos SET
+              nome = ?,
+              quantidade_pavimentos = ?,
+              quantidade_apartamentos_por_pavimento = ?,
+              existem_halls = ?,
+              quantidade_halls_por_pavimento = ?
+            WHERE id = ? AND empreendimento_id = ?
+          `;
+          
+          db.run(sqlUpdate, [
+            bloco.nome,
+            bloco.quantidade_pavimentos,
+            bloco.quantidade_apartamentos_por_pavimento,
+            bloco.existem_halls ? 1 : 0,
+            bloco.quantidade_halls_por_pavimento || 0,
+            bloco.id,
+            id
+          ], function(errUpdate) {
+            processados++;
+            
+            if (errUpdate) {
+              console.error(`❌ Erro ao atualizar bloco ${bloco.nome}:`, errUpdate.message);
+              erros.push({ bloco: bloco.nome, erro: errUpdate.message });
+            } else {
+              console.log(`✅ Bloco ${bloco.nome} atualizado (ID: ${bloco.id})`);
+            }
+            
+            // Quando todos foram processados
+            if (processados === blocos.length) {
+              if (erros.length > 0) {
+                return res.status(500).json({ error: "Erros ao atualizar blocos", detalhes: erros });
+              }
+              console.log('✅✅✅ EMPREENDIMENTO E BLOCOS ATUALIZADOS! ✅✅✅');
+              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+              res.json({ message: "Empreendimento e blocos atualizados com sucesso" });
+            }
+          });
+          
+        } else {
+          // INSERIR novo bloco
+          const sqlInsert = `
+            INSERT INTO blocos (
+              empreendimento_id, nome, quantidade_pavimentos,
+              quantidade_apartamentos_por_pavimento, existem_halls, quantidade_halls_por_pavimento
+            ) VALUES (?, ?, ?, ?, ?, ?)
+          `;
+          
+          db.run(sqlInsert, [
+            id,
+            bloco.nome,
+            bloco.quantidade_pavimentos,
+            bloco.quantidade_apartamentos_por_pavimento,
+            bloco.existem_halls ? 1 : 0,
+            bloco.quantidade_halls_por_pavimento || 0
+          ], function(errInsert) {
+            processados++;
+            
+            if (errInsert) {
+              console.error(`❌ Erro ao inserir bloco ${bloco.nome}:`, errInsert.message);
+              erros.push({ bloco: bloco.nome, erro: errInsert.message });
+            } else {
+              console.log(`✅ Bloco ${bloco.nome} inserido (ID: ${this.lastID})`);
+            }
+            
+            // Quando todos foram processados
+            if (processados === blocos.length) {
+              if (erros.length > 0) {
+                return res.status(500).json({ error: "Erros ao salvar blocos", detalhes: erros });
+              }
+              console.log('✅✅✅ EMPREENDIMENTO E BLOCOS ATUALIZADOS! ✅✅✅');
+              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+              res.json({ message: "Empreendimento e blocos atualizados com sucesso" });
+            }
+          });
+        }
+      });
+    });
   });
 });
 
@@ -508,6 +632,133 @@ app.get("/api/unidades/empreendimento/:empId", (req, res) => {
       res.json(rows);
     }
   );
+});
+
+// EDITAR UNIDADE
+app.put("/api/unidades/:id", (req, res) => {
+  const { id } = req.params;
+  const { tipologia, area_total, observacoes } = req.body;
+  
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('✏️ PUT /api/unidades/' + id);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('   Tipologia:', tipologia || '(vazio)');
+  console.log('   Área:', area_total || '(vazio)');
+  console.log('   Obs:', observacoes || '(vazio)');
+  
+  const sql = `
+    UPDATE unidades SET
+      tipologia = ?,
+      area_total = ?,
+      observacoes = ?,
+      updated_at = datetime('now', 'localtime')
+    WHERE id = ?
+  `;
+  
+  db.run(sql, [tipologia || null, area_total || null, observacoes || null, id], function(err) {
+    if (err) {
+      console.error('❌ Erro SQL:', err.message);
+      return res.status(500).json({ error: "Erro ao atualizar unidade: " + err.message });
+    }
+    
+    if (this.changes === 0) {
+      console.log('❌ Unidade não encontrada');
+      return res.status(404).json({ error: "Unidade não encontrada" });
+    }
+    
+    console.log('✅ Unidade atualizada!');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    
+    res.json({ message: "Unidade atualizada com sucesso" });
+  });
+});
+
+// DELETAR UNIDADE
+app.delete("/api/unidades/:id", (req, res) => {
+  const { id } = req.params;
+  
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🗑️ DELETE /api/unidades/' + id);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  
+  db.run("DELETE FROM unidades WHERE id = ?", [id], function(err) {
+    if (err) {
+      console.error('❌ Erro SQL:', err.message);
+      return res.status(500).json({ error: "Erro ao deletar unidade: " + err.message });
+    }
+    
+    if (this.changes === 0) {
+      console.log('❌ Unidade não encontrada');
+      return res.status(404).json({ error: "Unidade não encontrada" });
+    }
+    
+    console.log('✅ Unidade deletada!');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    
+    res.json({ message: "Unidade deletada com sucesso" });
+  });
+});
+
+// ADICIONAR UNIDADE MANUAL
+app.post("/api/unidades", (req, res) => {
+  const {
+    empreendimento_id,
+    bloco_id,
+    bloco_nome,
+    pavimento,
+    numero_unidade,
+    tipo,
+    tipologia,
+    area_total,
+    observacoes
+  } = req.body;
+  
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('➕ POST /api/unidades (MANUAL)');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('   Empreendimento:', empreendimento_id);
+  console.log('   Bloco:', bloco_nome);
+  console.log('   Pavimento:', pavimento);
+  console.log('   Unidade:', numero_unidade);
+  console.log('   Tipo:', tipo);
+  
+  // Validações
+  if (!empreendimento_id || !bloco_id || !bloco_nome || !pavimento || !numero_unidade || !tipo) {
+    console.error('❌ Campos obrigatórios faltando');
+    return res.status(400).json({ error: "Campos obrigatórios: empreendimento_id, bloco_id, bloco_nome, pavimento, numero_unidade, tipo" });
+  }
+  
+  const sql = `
+    INSERT INTO unidades (
+      empreendimento_id, bloco_id, bloco_nome, pavimento, numero_unidade,
+      tipo, tipologia, area_total, observacoes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  
+  db.run(sql, [
+    empreendimento_id,
+    bloco_id,
+    bloco_nome,
+    pavimento,
+    numero_unidade,
+    tipo,
+    tipologia || null,
+    area_total || null,
+    observacoes || null
+  ], function(err) {
+    if (err) {
+      console.error('❌ Erro SQL:', err.message);
+      return res.status(500).json({ error: "Erro ao criar unidade: " + err.message });
+    }
+    
+    console.log('✅ Unidade criada! ID:', this.lastID);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    
+    res.status(201).json({
+      id: this.lastID,
+      message: "Unidade criada com sucesso"
+    });
+  });
 });
 
 // CRIAR UNIDADES AUTOMATICAMENTE
