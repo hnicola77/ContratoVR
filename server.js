@@ -847,7 +847,249 @@ app.post("/api/unidades/criar-automatico", (req, res) => {
   });
 });
 
-// Continua com as outras rotas (contratos, distribuição, execução)
+// ==================== CONTRATOS ====================
+
+// LISTAR TODOS OS CONTRATOS
+app.get("/api/contratos", (req, res) => {
+  console.log('📋 GET /api/contratos');
+  
+  const sql = `
+    SELECT c.*, e.nome as empreendimento_nome
+    FROM contratos c
+    LEFT JOIN empreendimentos e ON c.empreendimento_id = e.id
+    WHERE c.ativo = 1
+    ORDER BY c.created_at DESC
+  `;
+  
+  db.all(sql, [], (err, rows) => {
+    if (err) {
+      console.error('❌ Erro SQL:', err.message);
+      return res.status(500).json({ error: "Erro ao listar contratos: " + err.message });
+    }
+    
+    console.log(`✅ Encontrados: ${rows.length} contratos`);
+    
+    // Parse metragem_por_pavimento (está como string JSON no banco)
+    const contratos = rows.map(contrato => ({
+      ...contrato,
+      metragem_por_pavimento: contrato.metragem_por_pavimento ? JSON.parse(contrato.metragem_por_pavimento) : null
+    }));
+    
+    res.json(contratos);
+  });
+});
+
+// BUSCAR CONTRATO POR ID
+app.get("/api/contratos/:id", (req, res) => {
+  const { id } = req.params;
+  console.log('📋 GET /api/contratos/' + id);
+  
+  const sql = `
+    SELECT c.*, e.nome as empreendimento_nome
+    FROM contratos c
+    LEFT JOIN empreendimentos e ON c.empreendimento_id = e.id
+    WHERE c.id = ?
+  `;
+  
+  db.get(sql, [id], (err, row) => {
+    if (err) {
+      console.error('❌ Erro SQL:', err.message);
+      return res.status(500).json({ error: "Erro ao buscar contrato: " + err.message });
+    }
+    
+    if (!row) {
+      console.log('❌ Contrato não encontrado');
+      return res.status(404).json({ error: "Contrato não encontrado" });
+    }
+    
+    // Parse metragem_por_pavimento
+    if (row.metragem_por_pavimento) {
+      row.metragem_por_pavimento = JSON.parse(row.metragem_por_pavimento);
+    }
+    
+    console.log('✅ Contrato encontrado:', row.numero_contrato_oerp);
+    res.json(row);
+  });
+});
+
+// CRIAR CONTRATO
+app.post("/api/contratos", (req, res) => {
+  const {
+    numero_contrato_oerp,
+    empreendimento_id,
+    tipo_servico,
+    valor_total,
+    valor_por_m2,
+    metragem_total,
+    metragem_por_pavimento,
+    observacoes,
+    status,
+    data_inicio,
+    data_previsao_termino
+  } = req.body;
+  
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('📝 POST /api/contratos');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('   Número:', numero_contrato_oerp);
+  console.log('   Empreendimento:', empreendimento_id);
+  console.log('   Tipo:', tipo_servico);
+  console.log('   Valor:', valor_total);
+  console.log('   Metragem:', metragem_total);
+  
+  // Validações
+  if (!numero_contrato_oerp || !empreendimento_id || !tipo_servico || !valor_total || !metragem_total) {
+    console.error('❌ Campos obrigatórios faltando');
+    return res.status(400).json({ 
+      error: "Campos obrigatórios: numero_contrato_oerp, empreendimento_id, tipo_servico, valor_total, metragem_total" 
+    });
+  }
+  
+  const sql = `
+    INSERT INTO contratos (
+      numero_contrato_oerp,
+      empreendimento_id,
+      tipo_servico,
+      valor_total,
+      valor_por_m2,
+      metragem_total,
+      metragem_por_pavimento,
+      observacoes,
+      status,
+      data_inicio,
+      data_previsao_termino
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  
+  // Converter metragem_por_pavimento para JSON string
+  const metragen_json = metragem_por_pavimento ? JSON.stringify(metragem_por_pavimento) : null;
+  
+  db.run(sql, [
+    numero_contrato_oerp,
+    empreendimento_id,
+    tipo_servico,
+    valor_total,
+    valor_por_m2 || 0,
+    metragem_total,
+    metragen_json,
+    observacoes || null,
+    status || 'ativo',
+    data_inicio || null,
+    data_previsao_termino || null
+  ], function(err) {
+    if (err) {
+      console.error('❌ Erro SQL:', err.message);
+      return res.status(500).json({ error: "Erro ao criar contrato: " + err.message });
+    }
+    
+    console.log('✅ Contrato criado! ID:', this.lastID);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    
+    res.status(201).json({
+      id: this.lastID,
+      message: "Contrato criado com sucesso"
+    });
+  });
+});
+
+// ATUALIZAR CONTRATO
+app.put("/api/contratos/:id", (req, res) => {
+  const { id } = req.params;
+  const {
+    numero_contrato_oerp,
+    tipo_servico,
+    valor_total,
+    valor_por_m2,
+    metragem_total,
+    metragem_por_pavimento,
+    observacoes,
+    status,
+    data_inicio,
+    data_previsao_termino
+  } = req.body;
+  
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('✏️ PUT /api/contratos/' + id);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  
+  const sql = `
+    UPDATE contratos SET
+      numero_contrato_oerp = ?,
+      tipo_servico = ?,
+      valor_total = ?,
+      valor_por_m2 = ?,
+      metragem_total = ?,
+      metragem_por_pavimento = ?,
+      observacoes = ?,
+      status = ?,
+      data_inicio = ?,
+      data_previsao_termino = ?,
+      updated_at = datetime('now', 'localtime')
+    WHERE id = ?
+  `;
+  
+  const metragen_json = metragem_por_pavimento ? JSON.stringify(metragem_por_pavimento) : null;
+  
+  db.run(sql, [
+    numero_contrato_oerp,
+    tipo_servico,
+    valor_total,
+    valor_por_m2 || 0,
+    metragem_total,
+    metragen_json,
+    observacoes || null,
+    status || 'ativo',
+    data_inicio || null,
+    data_previsao_termino || null,
+    id
+  ], function(err) {
+    if (err) {
+      console.error('❌ Erro SQL:', err.message);
+      return res.status(500).json({ error: "Erro ao atualizar contrato: " + err.message });
+    }
+    
+    if (this.changes === 0) {
+      console.log('❌ Contrato não encontrado');
+      return res.status(404).json({ error: "Contrato não encontrado" });
+    }
+    
+    console.log('✅ Contrato atualizado!');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    
+    res.json({ message: "Contrato atualizado com sucesso" });
+  });
+});
+
+// DELETAR CONTRATO (soft delete)
+app.delete("/api/contratos/:id", (req, res) => {
+  const { id } = req.params;
+  
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🗑️ DELETE /api/contratos/' + id);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  
+  // Soft delete - apenas marca como inativo
+  const sql = "UPDATE contratos SET ativo = 0, updated_at = datetime('now', 'localtime') WHERE id = ?";
+  
+  db.run(sql, [id], function(err) {
+    if (err) {
+      console.error('❌ Erro SQL:', err.message);
+      return res.status(500).json({ error: "Erro ao deletar contrato: " + err.message });
+    }
+    
+    if (this.changes === 0) {
+      console.log('❌ Contrato não encontrado');
+      return res.status(404).json({ error: "Contrato não encontrado" });
+    }
+    
+    console.log('✅ Contrato deletado (soft delete)!');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    
+    res.json({ message: "Contrato deletado com sucesso" });
+  });
+});
+
+// Continua com as outras rotas (distribuição, execução)
 // ... (código das outras rotas aqui - mantido igual)
 
 // ROTA RAIZ
