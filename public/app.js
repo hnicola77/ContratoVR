@@ -31,13 +31,13 @@ function atualizarCards() {
   const total = todosContratos.length;
   const ativos = todosContratos.filter(c => c.status === 'ativo').length;
   
-  const metragemTotal = todosContratos.reduce((sum, c) => sum + (c.metragem_total || 0), 0);
-  const valorTotal = todosContratos.reduce((sum, c) => sum + (c.valor_total || 0), 0);
+  const metragemTotal = todosContratos.reduce((sum, c) => sum + (parseFloat(c.metragem_total) || 0), 0);
+  const valorTotal = todosContratos.reduce((sum, c) => sum + (parseFloat(c.valor_total) || 0), 0);
   
-  document.getElementById('cardTotalContratos').textContent = total;
-  document.getElementById('cardAtivos').textContent = ativos;
-  document.getElementById('cardMetragemTotal').textContent = `${metragemTotal.toFixed(2)} m²`;
-  document.getElementById('cardValorTotal').textContent = `R$ ${valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+  document.getElementById('totalContratos').textContent = total;
+  document.getElementById('contratosAtivos').textContent = ativos;
+  document.getElementById('metragemTotal').textContent = `${metragemTotal.toFixed(2)} m²`;
+  document.getElementById('valorTotal').textContent = `R$ ${valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
 }
 
 // ==================== PREENCHER FILTROS ====================
@@ -57,7 +57,7 @@ function preencherFiltros() {
 
 // ==================== FILTRAR CONTRATOS ====================
 function filtrarContratos() {
-  const busca = document.getElementById('buscaRapida').value.toLowerCase();
+  const busca = document.getElementById('filtroNumero').value.toLowerCase();
   const empreendimento = document.getElementById('filtroEmpreendimento').value;
   const status = document.getElementById('filtroStatus').value;
   
@@ -85,7 +85,7 @@ function filtrarContratos() {
 
 // ==================== LIMPAR FILTROS ====================
 function limparFiltros() {
-  document.getElementById('buscaRapida').value = '';
+  document.getElementById('filtroNumero').value = '';
   document.getElementById('filtroEmpreendimento').value = '';
   document.getElementById('filtroStatus').value = '';
   filtrarContratos();
