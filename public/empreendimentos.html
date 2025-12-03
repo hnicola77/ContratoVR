@@ -164,6 +164,51 @@
   </div>
 </div>
 
+<!-- MODAL EDITAR UNIDADE -->
+<div id="modalEditarUnidade" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1001; overflow-y: auto;">
+  <div style="background: white; max-width: 500px; margin: 100px auto; border-radius: 16px; padding: 32px;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+      <h2 style="margin: 0;">✏️ Editar Unidade</h2>
+      <button onclick="fecharModalEditarUnidade()" style="background: none; border: none; font-size: 24px; cursor: pointer;">×</button>
+    </div>
+
+    <form onsubmit="salvarEdicaoUnidade(event); return false;">
+      
+      <input type="hidden" id="edit_unidade_id">
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #64748b;">Bloco / Pavimento / Unidade</label>
+        <input type="text" id="edit_unidade_info" disabled style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; background: #f8fafc; color: #64748b;">
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Tipologia</label>
+        <input type="text" id="edit_tipologia" placeholder="Ex: 2 Quartos, 3 Quartos, Cobertura..." style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+        <small style="color: #64748b;">Descrição do tipo de unidade</small>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Área Total (m²)</label>
+        <input type="number" id="edit_area" step="0.01" min="0" placeholder="Ex: 65.50" style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;">
+        <small style="color: #64748b;">Área em metros quadrados</small>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Observações</label>
+        <textarea id="edit_observacoes" rows="3" placeholder="Anotações adicionais..." style="width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;"></textarea>
+      </div>
+
+      <div style="display: flex; gap: 12px;">
+        <button type="submit" class="btn-primary" style="flex: 1;">💾 Salvar</button>
+        <button type="button" onclick="fecharModalEditarUnidade()" class="btn-secondary" style="flex: 1;">Cancelar</button>
+      </div>
+
+    </form>
+
+  </div>
+</div>
+
 <script>
 console.log('🚀 ContratosVR v4.0 - EDIÇÃO E VISUALIZAÇÃO AVANÇADA');
 
@@ -626,27 +671,115 @@ function exportarUnidades() {
 
 // ==================== EDITAR/DELETAR UNIDADE ====================
 async function editarUnidade(id) {
-  const tipologia = prompt('Digite a tipologia (ex: 2 Quartos, 3 Quartos):');
-  const area = prompt('Digite a área total em m²:');
+  console.log('✏️ Editando unidade:', id);
   
-  if (tipologia === null && area === null) return;
+  // Buscar unidade atual
+  const unidade = unidadesCache.find(u => u.id === id);
+  if (!unidade) {
+    alert('❌ Unidade não encontrada');
+    return;
+  }
+  
+  // Preencher modal
+  document.getElementById('edit_unidade_id').value = unidade.id;
+  document.getElementById('edit_unidade_info').value = `${unidade.bloco_nome} - Pav ${unidade.pavimento} - ${unidade.numero_unidade}`;
+  document.getElementById('edit_tipologia').value = unidade.tipologia || '';
+  document.getElementById('edit_area').value = unidade.area_total || '';
+  document.getElementById('edit_observacoes').value = unidade.observacoes || '';
+  
+  // Abrir modal
+  document.getElementById('modalEditarUnidade').style.display = 'block';
+}
+
+function fecharModalEditarUnidade() {
+  document.getElementById('modalEditarUnidade').style.display = 'none';
+  document.getElementById('edit_unidade_id').value = '';
+  document.getElementById('edit_tipologia').value = '';
+  document.getElementById('edit_area').value = '';
+  document.getElementById('edit_observacoes').value = '';
+}
+
+async function salvarEdicaoUnidade(event) {
+  event.preventDefault();
+  
+  const id = document.getElementById('edit_unidade_id').value;
+  const tipologia = document.getElementById('edit_tipologia').value;
+  const area_total = document.getElementById('edit_area').value;
+  const observacoes = document.getElementById('edit_observacoes').value;
+  
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('💾 Salvando edição da unidade:', id);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('   Tipologia:', tipologia || '(vazio)');
+  console.log('   Área:', area_total || '(vazio)');
   
   try {
-    // TODO: Implementar rota PUT /api/unidades/:id no backend
-    alert('Funcionalidade em desenvolvimento. Por enquanto, delete e gere novamente.');
+    const response = await fetch('/api/unidades/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tipologia: tipologia || null,
+        area_total: area_total ? parseFloat(area_total) : null,
+        observacoes: observacoes || null
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok) {
+      console.log('✅ Unidade atualizada!');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      
+      alert('✅ Unidade atualizada com sucesso!');
+      fecharModalEditarUnidade();
+      
+      // Recarregar unidades do empreendimento atual
+      const empId = unidadesCache[0]?.empreendimento_id;
+      if (empId) {
+        verUnidadesCompleto(empId);
+      }
+    } else {
+      console.error('❌ Erro:', result.error);
+      alert('❌ Erro: ' + result.error);
+    }
   } catch (error) {
-    alert('Erro ao editar unidade');
+    console.error('❌ Exceção:', error);
+    alert('❌ Erro: ' + error.message);
   }
 }
 
 async function deletarUnidade(id) {
-  if (!confirm('Deletar esta unidade?')) return;
+  if (!confirm('⚠️ Deletar esta unidade?\n\nEsta ação não pode ser desfeita.')) return;
+  
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🗑️ Deletando unidade:', id);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
   try {
-    // TODO: Implementar rota DELETE /api/unidades/:id no backend
-    alert('Funcionalidade em desenvolvimento.');
+    const response = await fetch('/api/unidades/' + id, {
+      method: 'DELETE'
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok) {
+      console.log('✅ Unidade deletada!');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      
+      alert('✅ Unidade deletada com sucesso!');
+      
+      // Recarregar unidades do empreendimento atual
+      const empId = unidadesCache[0]?.empreendimento_id;
+      if (empId) {
+        verUnidadesCompleto(empId);
+      }
+    } else {
+      console.error('❌ Erro:', result.error);
+      alert('❌ Erro: ' + result.error);
+    }
   } catch (error) {
-    alert('Erro ao deletar unidade');
+    console.error('❌ Exceção:', error);
+    alert('❌ Erro: ' + error.message);
   }
 }
 
