@@ -159,6 +159,7 @@ const criarTabelas = new Promise((resolve, reject) => {
         status TEXT DEFAULT 'ativo',
         data_inicio TEXT,
         data_previsao_termino TEXT,
+        ativo INTEGER DEFAULT 1,
         created_at TEXT DEFAULT (datetime('now', 'localtime')),
         updated_at TEXT DEFAULT (datetime('now', 'localtime')),
         FOREIGN KEY (empreendimento_id) REFERENCES empreendimentos(id)
