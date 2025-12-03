@@ -166,9 +166,15 @@ function fecharModal() {
 // ADICIONAR BLOCO
 function adicionarBloco() {
   blocoCount++;
-  console.log('➕ Bloco', blocoCount);
+  console.log('➕ Adicionando bloco', blocoCount);
   
   const container = document.getElementById('blocosContainer');
+  
+  if (!container) {
+    console.error('❌ Container de blocos não encontrado!');
+    return;
+  }
+  
   const blocoDiv = document.createElement('div');
   blocoDiv.id = 'bloco_' + blocoCount;
   blocoDiv.style.cssText = 'background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;';
@@ -210,6 +216,7 @@ function adicionarBloco() {
   `;
   
   container.appendChild(blocoDiv);
+  console.log('✅ Bloco', blocoCount, 'adicionado. Total no DOM:', container.children.length);
 }
 
 function removerBloco(id) {
@@ -249,12 +256,24 @@ async function salvarEmpreendimento(event) {
   blocosDivs.forEach((blocoDiv, index) => {
     const id = blocoDiv.id.replace('bloco_', '');
     
+    // Verificar se todos os campos existem
+    const campoNome = document.getElementById('bloco_nome_' + id);
+    const campoPav = document.getElementById('bloco_pav_' + id);
+    const campoAptos = document.getElementById('bloco_aptos_' + id);
+    const campoHalls = document.getElementById('bloco_halls_' + id);
+    const campoQtdHalls = document.getElementById('bloco_qtd_halls_' + id);
+    
+    if (!campoNome || !campoPav || !campoAptos || !campoHalls || !campoQtdHalls) {
+      console.error(`❌ Campos do bloco ${id} não encontrados!`);
+      return; // Pula este bloco
+    }
+    
     const bloco = {
-      nome: document.getElementById('bloco_nome_' + id).value,
-      quantidade_pavimentos: parseInt(document.getElementById('bloco_pav_' + id).value),
-      quantidade_apartamentos_por_pavimento: parseInt(document.getElementById('bloco_aptos_' + id).value),
-      existem_halls: document.getElementById('bloco_halls_' + id).value === '1',
-      quantidade_halls_por_pavimento: parseInt(document.getElementById('bloco_qtd_halls_' + id).value) || 0
+      nome: campoNome.value,
+      quantidade_pavimentos: parseInt(campoPav.value),
+      quantidade_apartamentos_por_pavimento: parseInt(campoAptos.value),
+      existem_halls: campoHalls.value === '1',
+      quantidade_halls_por_pavimento: parseInt(campoQtdHalls.value) || 0
     };
     
     console.log(`   Bloco ${index + 1}:`, bloco);
@@ -262,8 +281,10 @@ async function salvarEmpreendimento(event) {
   });
   
   if (blocos.length === 0) {
-    console.error('❌ Nenhum bloco!');
-    alert('Adicione pelo menos um bloco!');
+    console.error('❌ Nenhum bloco válido encontrado!');
+    console.log('Blocos na tela:', blocosDivs.length);
+    console.log('Blocos coletados:', blocos.length);
+    alert('❌ Erro: Nenhum bloco válido! Verifique se preencheu todos os campos.');
     return;
   }
   
